@@ -5,6 +5,43 @@ import { useRouter } from "next/navigation";
 import TransactionSheet from "./TransactionSheet";
 import type { TxRow, CategoryInfo } from "./types";
 
+function SyncButton({ onSynced }: { onSynced: () => void }) {
+  const [syncing, setSyncing] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function handleSync() {
+    setSyncing(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/plaid/sync-transactions", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Sync failed");
+      setResult(`Synced ${data.synced} transactions`);
+      onSynced();
+    } catch (err) {
+      setResult(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        onClick={handleSync}
+        disabled={syncing}
+        className="flex items-center gap-1.5 text-xs font-medium text-orange-500 disabled:opacity-50 py-1 px-2 rounded-lg active:bg-orange-50"
+      >
+        <span className={syncing ? "animate-spin" : ""}>↻</span>
+        {syncing ? "Syncing…" : "Sync"}
+      </button>
+      {result && (
+        <p className="text-xs text-gray-400 pr-2">{result}</p>
+      )}
+    </div>
+  );
+}
+
 export default function TransactionsClient({
   transactions,
   categories,
@@ -24,10 +61,13 @@ export default function TransactionsClient({
     return (
       <div className="px-4 pt-12 pb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Transactions</h1>
-        <div className="text-center py-20 text-gray-400 text-sm space-y-2">
+        <div className="text-center py-16 text-gray-400 text-sm space-y-4">
           <p className="text-4xl">💳</p>
-          <p>No transactions yet.</p>
-          <p>Connect a bank card in Settings to get started.</p>
+          <div className="space-y-1">
+            <p className="text-gray-500 font-medium">No transactions yet</p>
+            <p className="text-xs">Banks can take a few minutes to load the first time.</p>
+          </div>
+          <SyncButton onSynced={refresh} />
         </div>
       </div>
     );
@@ -37,7 +77,10 @@ export default function TransactionsClient({
 
   return (
     <div className="px-4 pt-12 pb-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Transactions</h1>
+      <div className="flex items-start justify-between mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
+        <SyncButton onSynced={refresh} />
+      </div>
 
       <div className="space-y-5">
         {groups.map(({ label, txs }) => (
