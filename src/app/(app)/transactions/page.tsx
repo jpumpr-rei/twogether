@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import TransactionsClient from "./TransactionsClient";
-import { parseDateFilter, dateFilterBounds } from "@/components/ui/DateFilterSheet";
+import { parseDateFilter, dateFilterBounds } from "@/lib/dateFilter";
 import type { TxRow, CategoryInfo, CardInfo } from "./types";
 
 export default async function TransactionsPage({

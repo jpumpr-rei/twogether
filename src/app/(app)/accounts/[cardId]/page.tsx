@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import AccountDetailClient from "./AccountDetailClient";
-import { parseDateFilter, dateFilterBounds } from "@/components/ui/DateFilterSheet";
+import { parseDateFilter, dateFilterBounds } from "@/lib/dateFilter";
 import type { TxRow, CategoryInfo } from "../../transactions/types";
 
 export type AccountCardRow = {
