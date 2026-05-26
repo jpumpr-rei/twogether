@@ -12,6 +12,7 @@ export default function PlaidConnectButton() {
 
   const onSuccess = useCallback<PlaidLinkOnSuccess>(
     async (public_token, metadata) => {
+      console.log("[Plaid] onSuccess fired", { institution: metadata.institution?.name, accounts: metadata.accounts.length });
       setFetching(true);
       setError(null);
       try {
@@ -33,8 +34,10 @@ export default function PlaidConnectButton() {
         });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
+          console.error("[Plaid] exchange-token failed", res.status, data);
           throw new Error(data.error || `Server error ${res.status}`);
         }
+        console.log("[Plaid] exchange-token succeeded");
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save account. Please try again.");
@@ -48,7 +51,9 @@ export default function PlaidConnectButton() {
   const { open, ready } = usePlaidLink({
     token,
     onSuccess,
-    onExit: () => {
+    onExit: (err, metadata) => {
+      console.log("[Plaid] onExit fired", { err, status: metadata?.status, requestId: metadata?.request_id });
+      if (err) setError(`Connection closed: ${err.display_message || err.error_message || "unknown error"}`);
       setToken(null);
       setFetching(false);
     },
