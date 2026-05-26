@@ -58,3 +58,27 @@ export async function deleteBudget(id: string) {
 
   revalidatePath("/budgets");
 }
+
+export async function createCategory(
+  name: string,
+  icon: string | null,
+  color: string | null
+) {
+  const trimmed = name.trim().slice(0, 50);
+  if (!trimmed) throw new Error("Name is required");
+
+  const supabase = await createClient();
+  const coupleId = await getCoupleId();
+
+  const { error } = await supabase.from("categories").insert({
+    couple_id: coupleId,
+    name: trimmed,
+    icon: icon || null,
+    color: color || null,
+    is_default: false,
+  });
+  if (error) throw error;
+
+  revalidatePath("/budgets");
+  revalidatePath("/transactions");
+}
