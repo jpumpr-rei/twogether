@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PlaidConnectButton from "@/components/ui/PlaidConnectButton";
@@ -33,6 +33,23 @@ export default function AccountsClient({
   const [editingCard, setEditingCard] = useState<CardDisplay | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [balancesLoading, setBalancesLoading] = useState(true);
+
+  // Fetch balances async so the page renders immediately
+  useEffect(() => {
+    fetch("/api/plaid/balances")
+      .then((r) => r.json())
+      .then(({ balances }: { balances: Record<string, number | null> }) => {
+        setCards((prev) =>
+          prev.map((c) => ({
+            ...c,
+            balance_current: balances[c.id] ?? null,
+          }))
+        );
+      })
+      .catch(() => {/* show — for balance on error */})
+      .finally(() => setBalancesLoading(false));
+  }, []);
 
   function refresh() {
     startTransition(() => router.refresh());
@@ -182,20 +199,20 @@ export default function AccountsClient({
 
                       {/* Balance */}
                       <div className="text-right flex-shrink-0">
-                        {displayAmount !== null ? (
-                          <>
-                            <p
-                              className={`font-bold text-sm tabular-nums ${
-                                isNegative ? "text-red-500" : "text-gray-900"
-                              }`}
-                            >
-                              {isNegative ? "-" : ""}$
-                              {Math.abs(displayAmount).toLocaleString("en-US", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}
-                            </p>
-                          </>
+                        {balancesLoading ? (
+                          <div className="h-4 w-14 bg-gray-100 rounded animate-pulse" />
+                        ) : displayAmount !== null ? (
+                          <p
+                            className={`font-bold text-sm tabular-nums ${
+                              isNegative ? "text-red-500" : "text-gray-900"
+                            }`}
+                          >
+                            {isNegative ? "-" : ""}$
+                            {Math.abs(displayAmount).toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </p>
                         ) : (
                           <p className="text-xs text-gray-300">—</p>
                         )}

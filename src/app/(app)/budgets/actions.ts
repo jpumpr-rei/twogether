@@ -3,8 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
-// Returns the user's couple_id, creating a solo household via a
-// SECURITY DEFINER function if none exists (bypasses RLS reliably)
+// Returns the user's couple_id, creating a solo household if none exists.
 async function getCoupleId(): Promise<string> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -23,15 +22,16 @@ export async function setBudget(
   existingId?: string
 ) {
   const supabase = await createClient();
+  const coupleId = await getCoupleId(); // always verify auth + get couple
 
   if (existingId) {
     const { error } = await supabase
       .from("budgets")
       .update({ amount, period })
-      .eq("id", existingId);
+      .eq("id", existingId)
+      .eq("couple_id", coupleId); // ownership check
     if (error) throw error;
   } else {
-    const coupleId = await getCoupleId();
     const { error } = await supabase.from("budgets").insert({
       couple_id: coupleId,
       category_id: categoryId,
@@ -47,7 +47,14 @@ export async function setBudget(
 
 export async function deleteBudget(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("budgets").delete().eq("id", id);
+  const coupleId = await getCoupleId(); // auth check
+
+  const { error } = await supabase
+    .from("budgets")
+    .delete()
+    .eq("id", id)
+    .eq("couple_id", coupleId); // ownership check
   if (error) throw error;
+
   revalidatePath("/budgets");
 }
