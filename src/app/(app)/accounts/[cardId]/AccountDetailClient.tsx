@@ -4,6 +4,8 @@ import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import TransactionSheet from "../../transactions/TransactionSheet";
 import DateFilterSheet from "@/components/ui/DateFilterSheet";
+import EditAccountNameSheet from "../EditAccountNameSheet";
+import { removeCard } from "../actions";
 import {
   dateFilterLabel,
   dateFilterToSearch,
@@ -30,9 +32,24 @@ export default function AccountDetailClient({
   const [selectedTx, setSelectedTx] = useState<TxRow | null>(null);
   const [search, setSearch] = useState("");
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [showEditName, setShowEditName] = useState(false);
+  const [cardName, setCardName] = useState(card.account_name);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   function refresh() {
     startTransition(() => router.refresh());
+  }
+
+  async function handleRemove() {
+    setRemoving(true);
+    try {
+      await removeCard(cardId);
+      router.replace("/accounts");
+    } catch {
+      setRemoving(false);
+      setConfirmRemove(false);
+    }
   }
 
   function handleFilterSelect(filter: DateFilter) {
@@ -57,24 +74,44 @@ export default function AccountDetailClient({
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
-      <div className="bg-white px-4 pt-14 pb-4 flex items-center gap-3 border-b border-gray-100">
-        <button
-          onClick={() => router.back()}
-          className="text-orange-500 font-medium text-base active:opacity-60 mr-1"
-        >
-          ← Back
-        </button>
-        <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">
-          💳
+      <div className="bg-white px-4 pt-14 pb-4 border-b border-gray-100">
+        {/* Top row: back + actions */}
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={() => router.back()}
+            className="text-orange-500 font-medium text-base active:opacity-60"
+          >
+            ← Back
+          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setShowEditName(true)}
+              className="text-orange-500 font-medium text-sm active:opacity-60"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => setConfirmRemove(true)}
+              className="text-red-400 font-medium text-sm active:opacity-60"
+            >
+              Remove
+            </button>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="font-bold text-gray-900 text-base leading-tight truncate">
-            {card.account_name}
-          </h1>
-          <p className="text-xs text-gray-400 capitalize">
-            {card.institution_name} · {card.account_type}
-            {card.last_four && ` ·· ${card.last_four}`}
-          </p>
+        {/* Account info */}
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">
+            💳
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-gray-900 text-base leading-tight truncate">
+              {cardName}
+            </h1>
+            <p className="text-xs text-gray-400 capitalize">
+              {card.institution_name} · {card.account_type}
+              {card.last_four && ` ·· ${card.last_four}`}
+            </p>
+          </div>
         </div>
       </div>
 
@@ -221,6 +258,43 @@ export default function AccountDetailClient({
           onSelect={handleFilterSelect}
           onClose={() => setShowDateFilter(false)}
         />
+      )}
+
+      {showEditName && (
+        <EditAccountNameSheet
+          card={{ id: cardId, institution_name: card.institution_name, account_name: cardName, last_four: card.last_four }}
+          onClose={() => setShowEditName(false)}
+          onSaved={(name) => { setCardName(name); setShowEditName(false); refresh(); }}
+        />
+      )}
+
+      {confirmRemove && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[60]" onClick={() => !removing && setConfirmRemove(false)} />
+          <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] px-5 pt-4 pb-8 shadow-2xl">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+            <p className="font-bold text-gray-900 text-base mb-2">Remove account?</p>
+            <p className="text-sm text-gray-500 mb-6">
+              This will permanently delete{" "}
+              <span className="font-medium text-gray-800">{cardName}</span> and all its
+              transactions. This cannot be undone.
+            </p>
+            <button
+              onClick={handleRemove}
+              disabled={removing}
+              className="w-full bg-red-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 active:bg-red-600 mb-3"
+            >
+              {removing ? "Removing…" : "Remove account"}
+            </button>
+            <button
+              onClick={() => setConfirmRemove(false)}
+              disabled={removing}
+              className="w-full text-gray-500 font-medium py-2 text-sm active:opacity-60"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
     </div>
   );

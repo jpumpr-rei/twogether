@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SignOutButton from "@/components/ui/SignOutButton";
-import ConnectedCardsSection from "./ConnectedCardsSection";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -25,24 +24,6 @@ export default async function SettingsPage() {
       .eq("id", profile.couple_id)
       .single();
     couple = data as CoupleRow | null;
-  }
-
-  type CardRow = {
-    id: string;
-    institution_name: string;
-    account_name: string;
-    last_four: string | null;
-    account_type: string;
-  };
-  let cards: CardRow[] = [];
-  if (profile?.couple_id) {
-    const { data } = await supabase
-      .from("cards")
-      .select("id, institution_name, account_name, last_four, account_type")
-      .eq("couple_id", profile.couple_id)
-      .eq("is_active", true)
-      .order("institution_name");
-    cards = (data ?? []) as CardRow[];
   }
 
   return (
@@ -75,11 +56,6 @@ export default async function SettingsPage() {
             </div>
           </div>
         )}
-      </Section>
-
-      {/* Connected accounts */}
-      <Section title="Connected accounts">
-        <ConnectedCardsSection cards={cards} />
       </Section>
 
       <SignOutButton />
