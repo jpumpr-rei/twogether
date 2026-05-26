@@ -3,7 +3,6 @@
 -- Run this in the Supabase SQL editor (Dashboard → SQL Editor)
 -- ============================================================
 
--- Enable UUID generation
 create extension if not exists "pgcrypto";
 
 -- ─── couples ───────────────────────────────────────────────
@@ -16,18 +15,8 @@ create table public.couples (
 
 alter table public.couples enable row level security;
 
--- Members of a couple can read/update their couple
-create policy "couple members can read" on public.couples
-  for select using (
-    id in (select couple_id from public.profiles where id = auth.uid())
-  );
-
-create policy "couple members can update" on public.couples
-  for update using (
-    id in (select couple_id from public.profiles where id = auth.uid())
-  );
-
 -- ─── profiles ──────────────────────────────────────────────
+-- Created before couples policies so the cross-table references work.
 create table public.profiles (
   id           uuid primary key references auth.users on delete cascade,
   email        text not null,
@@ -40,20 +29,35 @@ create table public.profiles (
 
 alter table public.profiles enable row level security;
 
--- Users can read their own profile; couple members can read each other
+-- Helper: returns the current user's couple_id without triggering RLS
+-- (SECURITY DEFINER bypasses RLS on the profiles lookup, preventing
+--  infinite recursion when policies on other tables check this value)
+create or replace function public.my_couple_id()
+returns uuid language sql security definer stable
+set search_path = public as $$
+  select couple_id from public.profiles where id = auth.uid()
+$$;
+
+-- ─── couples policies (after profiles exists) ──────────────
+create policy "couple members can read" on public.couples
+  for select using (id = public.my_couple_id());
+
+create policy "couple members can update" on public.couples
+  for update using (id = public.my_couple_id());
+
+-- ─── profiles policies ─────────────────────────────────────
 create policy "users can read own profile" on public.profiles
   for select using (id = auth.uid());
 
 create policy "couple members can read partner profile" on public.profiles
   for select using (
-    couple_id is not null and
-    couple_id in (select couple_id from public.profiles where id = auth.uid())
+    couple_id is not null and couple_id = public.my_couple_id()
   );
 
 create policy "users can update own profile" on public.profiles
   for update using (id = auth.uid());
 
--- Auto-create profile on signup
+-- Auto-create profile row when a new user signs up
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
@@ -86,7 +90,7 @@ alter table public.cards enable row level security;
 
 create policy "couple members can manage cards" on public.cards
   for all using (
-    couple_id in (select couple_id from public.profiles where id = auth.uid())
+    couple_id = public.my_couple_id()
   );
 
 -- ─── categories ────────────────────────────────────────────
@@ -102,31 +106,36 @@ create table public.categories (
 
 alter table public.categories enable row level security;
 
--- Couple members can see their own categories + global defaults
 create policy "couple members can read categories" on public.categories
   for select using (
-    is_default = true or
-    couple_id in (select couple_id from public.profiles where id = auth.uid())
+    is_default = true or couple_id = public.my_couple_id()
   );
 
 create policy "couple members can manage categories" on public.categories
   for all using (
-    couple_id in (select couple_id from public.profiles where id = auth.uid())
+    couple_id = public.my_couple_id()
   );
 
--- Seed default categories
 insert into public.categories (name, icon, color, is_default) values
-  ('Groceries',     '🛒', '#22c55e', true),
-  ('Dining Out',    '🍽️', '#f97316', true),
-  ('Transport',     '🚗', '#3b82f6', true),
-  ('Entertainment', '🎬', '#a855f7', true),
-  ('Shopping',      '🛍️', '#ec4899', true),
-  ('Health',        '💊', '#ef4444', true),
-  ('Travel',        '✈️', '#0ea5e9', true),
-  ('Utilities',     '💡', '#eab308', true),
-  ('Rent/Mortgage', '🏠', '#6366f1', true),
-  ('Savings',       '💰', '#10b981', true),
-  ('Other',         '📦', '#6b7280', true);
+  ('Groceries',             '🛒', '#16a34a', true),
+  ('Food & Drink',          '🍽️', '#3b82f6', true),
+  ('Utilities & Insurance', '🏠', '#f97316', true),
+  ('Travel',                '✈️', '#0ea5e9', true),
+  ('Gas',                   '⛽', '#dc2626', true),
+  ('Entertainment',         '🎬', '#f59e0b', true),
+  ('Health & Beauty',       '💊', '#a855f7', true),
+  ('Household Supplies',    '🛍️', '#eab308', true),
+  ('Subscriptions',         '📱', '#475569', true),
+  ('Individual Allowance',  '👤', '#a3a3a3', true),
+  ('Rideshare',             '🚕', '#8b5cf6', true),
+  ('Gifts & Charity',       '🎁', '#06b6d4', true),
+  ('Parking & Transit',     '🚌', '#6366f1', true),
+  ('Car Maintenance',       '🔧', '#78716c', true),
+  ('Investments',           '📈', '#10b981', true),
+  ('Home Improvement',      '🔨', '#b45309', true),
+  ('Miscellaneous',         '💲', '#ef4444', true),
+  ('Real Estate',           '🔑', '#14b8a6', true),
+  ('Reimbursed',            '💵', '#22c55e', true);
 
 -- ─── transactions ──────────────────────────────────────────
 create table public.transactions (
@@ -149,7 +158,7 @@ alter table public.transactions enable row level security;
 
 create policy "couple members can manage transactions" on public.transactions
   for all using (
-    couple_id in (select couple_id from public.profiles where id = auth.uid())
+    couple_id = public.my_couple_id()
   );
 
 create index transactions_couple_date_idx on public.transactions (couple_id, date desc);
@@ -172,7 +181,7 @@ alter table public.budgets enable row level security;
 
 create policy "couple members can manage budgets" on public.budgets
   for all using (
-    couple_id in (select couple_id from public.profiles where id = auth.uid())
+    couple_id = public.my_couple_id()
   );
 
 -- ─── updated_at triggers ───────────────────────────────────

@@ -53,6 +53,7 @@ export interface Database {
           owner_id: string;
           plaid_item_id: string | null;
           plaid_account_id: string | null;
+          plaid_access_token: string | null;
           institution_name: string;
           account_name: string;
           last_four: string | null;
@@ -66,6 +67,7 @@ export interface Database {
           owner_id: string;
           plaid_item_id?: string | null;
           plaid_account_id?: string | null;
+          plaid_access_token?: string | null;
           institution_name: string;
           account_name: string;
           last_four?: string | null;
@@ -77,6 +79,7 @@ export interface Database {
           owner_id?: string;
           plaid_item_id?: string | null;
           plaid_account_id?: string | null;
+          plaid_access_token?: string | null;
           institution_name?: string;
           account_name?: string;
           last_four?: string | null;
@@ -150,6 +153,26 @@ export interface Database {
           date?: string;
           note?: string | null;
           is_pending?: boolean;
+        };
+        Relationships: [];
+      };
+      transaction_splits: {
+        Row: {
+          id: string;
+          transaction_id: string;
+          category_id: string | null;
+          amount: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          transaction_id: string;
+          category_id?: string | null;
+          amount: number;
+        };
+        Update: {
+          category_id?: string | null;
+          amount?: number;
         };
         Relationships: [];
       };

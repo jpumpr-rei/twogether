@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SignOutButton from "@/components/ui/SignOutButton";
+import PlaidConnectButton from "@/components/ui/PlaidConnectButton";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -24,6 +25,24 @@ export default async function SettingsPage() {
       .eq("id", profile.couple_id)
       .single();
     couple = data as CoupleRow | null;
+  }
+
+  type CardRow = {
+    id: string;
+    institution_name: string;
+    account_name: string;
+    last_four: string | null;
+    account_type: string;
+  };
+  let cards: CardRow[] = [];
+  if (profile?.couple_id) {
+    const { data } = await supabase
+      .from("cards")
+      .select("id, institution_name, account_name, last_four, account_type")
+      .eq("couple_id", profile.couple_id)
+      .eq("is_active", true)
+      .order("institution_name");
+    cards = (data ?? []) as CardRow[];
   }
 
   return (
@@ -58,14 +77,39 @@ export default async function SettingsPage() {
         )}
       </Section>
 
-      {/* Connected cards */}
-      <Section title="Connected cards">
-        <div className="px-4 py-4 text-sm text-gray-500 space-y-3">
-          <p>No cards connected yet.</p>
-          <button className="w-full bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600">
-            Connect a bank account
-          </button>
-        </div>
+      {/* Connected accounts */}
+      <Section title="Connected accounts">
+        {cards.length > 0 ? (
+          <>
+            {cards.map((card) => (
+              <div key={card.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-base flex-shrink-0">
+                  🏦
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm truncate">
+                    {card.institution_name}
+                  </p>
+                  <p className="text-xs text-gray-400 capitalize">
+                    {card.account_name}
+                    {card.last_four && (
+                      <span className="ml-1">·· {card.last_four}</span>
+                    )}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-400 capitalize">{card.account_type}</span>
+              </div>
+            ))}
+            <div className="px-4 py-3">
+              <PlaidConnectButton />
+            </div>
+          </>
+        ) : (
+          <div className="px-4 py-4 text-sm text-gray-500 space-y-3">
+            <p>No accounts connected yet. Link your bank to start tracking spending.</p>
+            <PlaidConnectButton />
+          </div>
+        )}
       </Section>
 
       <SignOutButton />

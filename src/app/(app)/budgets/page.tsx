@@ -1,19 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-
-type BudgetRow = {
-  id: string;
-  name: string;
-  amount: number;
-  period: string;
-  category_id: string | null;
-};
+import BudgetsClient from "./BudgetsClient";
+import type { CategoryRow, BudgetRow, BudgetSlot } from "./types";
 
 export default async function BudgetsPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase
@@ -22,59 +14,86 @@ export default async function BudgetsPage() {
     .eq("id", user.id)
     .single();
 
+  const coupleId: string | null = profile?.couple_id ?? null;
+
+  // Fetch all available categories
+  let categories: CategoryRow[] = [];
+  if (coupleId) {
+    const { data } = await supabase
+      .from("categories")
+      .select("id, name, icon, color")
+      .or(`is_default.eq.true,couple_id.eq.${coupleId}`)
+      .order("name");
+    categories = (data ?? []) as CategoryRow[];
+  } else {
+    const { data } = await supabase
+      .from("categories")
+      .select("id, name, icon, color")
+      .eq("is_default", true)
+      .order("name");
+    categories = (data ?? []) as CategoryRow[];
+  }
+
+  // Fetch existing budgets
   let budgets: BudgetRow[] = [];
-  if (profile?.couple_id) {
+  if (coupleId) {
     const { data } = await supabase
       .from("budgets")
       .select("id, name, amount, period, category_id")
-      .eq("couple_id", profile.couple_id)
-      .order("created_at", { ascending: true });
+      .eq("couple_id", coupleId);
     budgets = (data ?? []) as BudgetRow[];
   }
 
-  return (
-    <div className="px-4 pt-12 pb-4">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Budgets</h1>
-        <button className="bg-orange-500 text-white text-sm font-semibold rounded-xl px-4 py-2 active:bg-orange-600">
-          + Add
-        </button>
-      </div>
+  // Current-month spending per category (direct + split amounts)
+  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+    .toISOString().split("T")[0];
+  const spending: Record<string, number> = {};
+  if (coupleId) {
+    const { data: txs } = await supabase
+      .from("transactions")
+      .select("id, category_id, amount")
+      .eq("couple_id", coupleId)
+      .gte("date", startOfMonth)
+      .gt("amount", 0);
 
-      {budgets.length === 0 ? (
-        <div className="text-center py-20 text-gray-400 text-sm space-y-2">
-          <p className="text-4xl">📊</p>
-          <p>No budgets set up yet.</p>
-          <p>
-            Tap <strong>+ Add</strong> to create your first shared budget.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {budgets.map((budget) => (
-            <div key={budget.id} className="bg-white rounded-2xl p-4 shadow-sm">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg">
-                  📦
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">{budget.name}</p>
-                  <p className="text-xs text-gray-400 capitalize">{budget.period}</p>
-                </div>
-                <div className="ml-auto text-right">
-                  <p className="font-bold text-gray-900">${budget.amount.toFixed(2)}</p>
-                </div>
-              </div>
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-orange-400 rounded-full" style={{ width: "0%" }} />
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                $0.00 of ${budget.amount.toFixed(2)} used
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+    const txList = (txs ?? []) as { id: string; category_id: string | null; amount: number }[];
+
+    // Direct (non-split) transactions
+    for (const tx of txList) {
+      if (tx.category_id) {
+        spending[tx.category_id] = (spending[tx.category_id] ?? 0) + tx.amount;
+      }
+    }
+
+    // Split amounts
+    const txIds = txList.map((t) => t.id);
+    if (txIds.length > 0) {
+      const { data: splits } = await supabase
+        .from("transaction_splits")
+        .select("category_id, amount")
+        .in("transaction_id", txIds)
+        .gt("amount", 0);
+      for (const s of (splits ?? []) as { category_id: string | null; amount: number }[]) {
+        if (s.category_id) {
+          spending[s.category_id] = (spending[s.category_id] ?? 0) + s.amount;
+        }
+      }
+    }
+  }
+
+  // Merge: one slot per category
+  const budgetMap = new Map(budgets.map((b) => [b.category_id ?? "", b]));
+  const slots: BudgetSlot[] = categories.map((cat) => ({
+    category: cat,
+    budget: budgetMap.get(cat.id) ?? null,
+    spent: spending[cat.id] ?? 0,
+  })).sort((a, b) => {
+    // Budgets with an amount set first (high→low), unset ones at bottom
+    if (a.budget && b.budget) return b.budget.amount - a.budget.amount;
+    if (a.budget) return -1;
+    if (b.budget) return 1;
+    return a.category.name.localeCompare(b.category.name);
+  });
+
+  return <BudgetsClient slots={slots} />;
 }
