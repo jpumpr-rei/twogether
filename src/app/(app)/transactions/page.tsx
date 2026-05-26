@@ -28,6 +28,18 @@ export default async function TransactionsPage({
   const activeFilter = parseDateFilter(params);
   const { startDate, endDate } = dateFilterBounds(activeFilter);
 
+  // Fetch last sync time
+  let lastSyncedAt: string | null = null;
+  if (coupleId) {
+    const { data: couple } = await supabase
+      .from("couples")
+      .select("last_synced_at")
+      .eq("id", coupleId)
+      .single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lastSyncedAt = (couple as any)?.last_synced_at ?? null;
+  }
+
   let transactions: TxRow[] = [];
   let categories: CategoryInfo[] = [];
   let cards: CardInfo[] = [];
@@ -86,6 +98,7 @@ export default async function TransactionsPage({
       categories={categories}
       cards={cards}
       activeFilter={activeFilter}
+      lastSyncedAt={lastSyncedAt}
     />
   );
 }

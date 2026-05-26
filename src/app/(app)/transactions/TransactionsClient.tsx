@@ -11,29 +11,52 @@ import {
 } from "@/lib/dateFilter";
 import type { TxRow, CategoryInfo, CardInfo } from "./types";
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function formatLastSynced(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffHr < 48) return "yesterday";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 // ── Sync button ───────────────────────────────────────────────────────────────
-function SyncButton({ onSynced }: { onSynced: () => void }) {
+function SyncButton({
+  lastSyncedAt,
+  onSynced,
+}: {
+  lastSyncedAt: string | null;
+  onSynced: () => void;
+}) {
   const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [syncedAt, setSyncedAt] = useState<string | null>(lastSyncedAt);
 
   async function handleSync() {
     setSyncing(true);
-    setResult(null);
+    setError(null);
     try {
       const res = await fetch("/api/plaid/sync-transactions", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Sync failed");
-      setResult(`Synced ${data.synced} transactions`);
+      setSyncedAt(new Date().toISOString());
       onSynced();
     } catch (err) {
-      setResult(err instanceof Error ? err.message : "Sync failed");
+      setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
       setSyncing(false);
     }
   }
 
+  const label = formatLastSynced(syncedAt);
+
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-end gap-0.5">
       <button
         onClick={handleSync}
         disabled={syncing}
@@ -42,7 +65,10 @@ function SyncButton({ onSynced }: { onSynced: () => void }) {
         <span className={syncing ? "animate-spin inline-block" : ""}>↻</span>
         {syncing ? "Syncing…" : "Sync"}
       </button>
-      {result && <p className="text-xs text-gray-400 pr-2">{result}</p>}
+      {error
+        ? <p className="text-xs text-red-400 pr-2">{error}</p>
+        : label && <p className="text-xs text-gray-400 pr-2">{label}</p>
+      }
     </div>
   );
 }
@@ -173,11 +199,13 @@ export default function TransactionsClient({
   categories,
   cards,
   activeFilter,
+  lastSyncedAt,
 }: {
   transactions: TxRow[];
   categories: CategoryInfo[];
   cards: CardInfo[];
   activeFilter: DateFilter;
+  lastSyncedAt: string | null;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -236,7 +264,7 @@ export default function TransactionsClient({
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-        <SyncButton onSynced={refresh} />
+        <SyncButton lastSyncedAt={lastSyncedAt} onSynced={refresh} />
       </div>
 
       {/* Search */}
@@ -329,7 +357,7 @@ export default function TransactionsClient({
                 <p className="text-gray-500 font-medium">No transactions this month</p>
                 <p className="text-xs">Banks can take a few minutes to load the first time.</p>
               </div>
-              <SyncButton onSynced={refresh} />
+              <SyncButton lastSyncedAt={lastSyncedAt} onSynced={refresh} />
             </>
           )}
         </div>
