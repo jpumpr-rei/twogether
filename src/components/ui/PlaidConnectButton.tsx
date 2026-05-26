@@ -12,23 +12,35 @@ export default function PlaidConnectButton() {
 
   const onSuccess = useCallback<PlaidLinkOnSuccess>(
     async (public_token, metadata) => {
-      await fetch("/api/plaid/exchange-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          public_token,
-          institution_id: metadata.institution?.institution_id ?? "",
-          institution_name: metadata.institution?.name ?? "Unknown",
-          accounts: metadata.accounts.map((a) => ({
-            id: a.id,
-            name: a.name,
-            type: a.type,
-            subtype: a.subtype,
-            mask: a.mask,
-          })),
-        }),
-      });
-      router.refresh();
+      setFetching(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/plaid/exchange-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            public_token,
+            institution_id: metadata.institution?.institution_id ?? "",
+            institution_name: metadata.institution?.name ?? "Unknown",
+            accounts: metadata.accounts.map((a) => ({
+              id: a.id,
+              name: a.name,
+              type: a.type,
+              subtype: a.subtype,
+              mask: a.mask,
+            })),
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Server error ${res.status}`);
+        }
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save account. Please try again.");
+      } finally {
+        setFetching(false);
+      }
     },
     [router]
   );
@@ -71,7 +83,7 @@ export default function PlaidConnectButton() {
         disabled={fetching || (token !== null && !ready)}
         className="w-full bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600 disabled:opacity-50"
       >
-        {fetching ? "Connecting…" : "Connect a bank account"}
+        {fetching ? (token ? "Saving…" : "Connecting…") : "Connect a bank account"}
       </button>
       {error && <p className="text-xs text-red-500 mt-2 text-center">{error}</p>}
     </div>
