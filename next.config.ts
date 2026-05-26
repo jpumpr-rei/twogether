@@ -10,6 +10,13 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    // Cache pages client-side for 60s so switching tabs feels instant.
+    // Pull-to-refresh or browser refresh forces a new server fetch.
+    staleTimes: {
+      dynamic: 60,
+    },
+  },
 };
 
 export default nextConfig;

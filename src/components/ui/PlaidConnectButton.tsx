@@ -36,12 +36,18 @@ export default function PlaidConnectButton() {
   const { open, ready } = usePlaidLink({
     token,
     onSuccess,
-    onExit: () => setToken(null),
+    onExit: () => {
+      setToken(null);
+      setFetching(false);
+    },
   });
 
   // Auto-open Plaid Link once the token is loaded and Plaid is ready
   useEffect(() => {
-    if (ready && token) open();
+    if (ready && token) {
+      open();
+      setFetching(false); // Link is open — no longer "connecting"
+    }
   }, [ready, token, open]);
 
   async function handleClick() {

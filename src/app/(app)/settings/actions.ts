@@ -32,8 +32,11 @@ export async function removeCard(cardId: string) {
   }
 
   // Delete the card's transactions, then the card itself
-  await supabase.from("transactions").delete().eq("card_id", cardId);
-  await supabase.from("cards").delete().eq("id", cardId);
+  const { error: txError } = await supabase.from("transactions").delete().eq("card_id", cardId);
+  if (txError) throw new Error(`Failed to delete transactions: ${txError.message}`);
+
+  const { error: cardError } = await supabase.from("cards").delete().eq("id", cardId);
+  if (cardError) throw new Error(`Failed to delete card: ${cardError.message}`);
 
   revalidatePath("/settings");
   revalidatePath("/accounts");
