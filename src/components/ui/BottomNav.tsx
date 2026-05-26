@@ -23,7 +23,7 @@ export default function BottomNav() {
             <Link
               key={tab.href}
               href={tab.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors ${
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-xs font-medium transition-colors cursor-pointer hover:opacity-80 ${
                 active ? "text-orange-500" : "text-gray-400"
               }`}
             >

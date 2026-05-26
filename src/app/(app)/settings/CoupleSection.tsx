@@ -102,14 +102,14 @@ function SetupView({ onCreated }: { onCreated: () => void }) {
         <div className="flex gap-2">
           <button
             onClick={() => { setMode("idle"); setError(null); setCode(""); }}
-            className="flex-1 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl py-2.5 active:bg-gray-50"
+            className="flex-1 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl py-2.5 hover:bg-gray-50 active:bg-gray-50"
           >
             Cancel
           </button>
           <button
             onClick={handleJoin}
             disabled={loading || !code.trim()}
-            className="flex-1 bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600 disabled:opacity-50"
+            className="flex-1 bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 hover:bg-orange-600 active:bg-orange-600 disabled:opacity-50"
           >
             {loading ? "Joining…" : "Join"}
           </button>
@@ -128,14 +128,14 @@ function SetupView({ onCreated }: { onCreated: () => void }) {
         <button
           onClick={handleCreate}
           disabled={loading}
-          className="flex-1 bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600 disabled:opacity-50"
+          className="flex-1 bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 hover:bg-orange-600 active:bg-orange-600 disabled:opacity-50"
         >
           {loading ? "Creating…" : "Create household"}
         </button>
         <button
           onClick={() => setMode("join")}
           disabled={loading}
-          className="flex-1 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl py-2.5 active:bg-gray-50 disabled:opacity-50"
+          className="flex-1 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl py-2.5 hover:bg-gray-50 active:bg-gray-50 disabled:opacity-50"
         >
           Enter code
         </button>
@@ -221,7 +221,7 @@ function InviteCodeView({
             className={`px-3 py-3 rounded-xl text-sm font-semibold flex-shrink-0 transition-colors ${
               copied
                 ? "bg-green-500 text-white"
-                : "bg-gray-100 text-gray-600 active:bg-gray-200"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-200"
             }`}
           >
             {copied ? "✓ Copied" : "Copy"}
@@ -248,7 +248,7 @@ function InviteCodeView({
           <button
             onClick={handleEmailInvite}
             disabled={!email.trim()}
-            className="px-4 py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-xl active:bg-orange-600 disabled:opacity-40 flex-shrink-0"
+            className="px-4 py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 active:bg-orange-600 disabled:opacity-40 flex-shrink-0"
           >
             Send
           </button>
@@ -261,7 +261,7 @@ function InviteCodeView({
       {/* Share button */}
       <button
         onClick={handleShare}
-        className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl py-2.5 active:bg-gray-50"
+        className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl py-2.5 hover:bg-gray-50 active:bg-gray-50"
       >
         <span>↗</span>
         <span>Share invite</span>
@@ -292,14 +292,14 @@ function InviteCodeView({
           <div className="flex gap-2">
             <button
               onClick={() => { setShowJoin(false); setCode(""); setError(null); }}
-              className="flex-1 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl py-2.5 active:bg-gray-50"
+              className="flex-1 border border-gray-200 text-gray-600 text-sm font-semibold rounded-xl py-2.5 hover:bg-gray-50 active:bg-gray-50"
             >
               Cancel
             </button>
             <button
               onClick={handleJoin}
               disabled={loading || !code.trim()}
-              className="flex-1 bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600 disabled:opacity-50"
+              className="flex-1 bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 hover:bg-orange-600 active:bg-orange-600 disabled:opacity-50"
             >
               {loading ? "Joining…" : "Join"}
             </button>
@@ -308,7 +308,7 @@ function InviteCodeView({
       ) : (
         <button
           onClick={() => setShowJoin(true)}
-          className="w-full text-center text-sm text-orange-500 font-medium py-1 active:opacity-60"
+          className="w-full text-center text-sm text-orange-500 font-medium py-1 hover:opacity-75 active:opacity-60"
         >
           Enter your partner&apos;s code instead →
         </button>

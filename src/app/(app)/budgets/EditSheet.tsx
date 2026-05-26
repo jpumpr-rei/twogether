@@ -97,7 +97,7 @@ export default function EditSheet({
         <button
           onClick={handleSave}
           disabled={saving || !amount || parseFloat(amount) <= 0}
-          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-base disabled:opacity-50 active:bg-orange-600 mb-3"
+          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-base disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600 mb-3"
         >
           {saving ? "Saving…" : budget ? "Update budget" : "Set budget"}
         </button>
@@ -106,7 +106,7 @@ export default function EditSheet({
           <button
             onClick={handleDelete}
             disabled={saving}
-            className="w-full text-red-500 font-medium py-2 text-sm active:bg-red-50 rounded-xl disabled:opacity-50"
+            className="w-full text-red-500 font-medium py-2 text-sm hover:bg-red-50 active:bg-red-50 rounded-xl disabled:opacity-50"
           >
             Remove budget
           </button>

@@ -69,7 +69,7 @@ function BudgetRow({
       {/* Main tap area — navigates to category detail */}
       <button
         onClick={onNavigate}
-        className="w-full px-4 pt-3 pb-3 text-left active:bg-gray-50 transition-colors"
+        className="w-full px-4 pt-3 pb-3 text-left hover:bg-gray-50 active:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-3 pr-8">
           <div
@@ -120,7 +120,7 @@ function BudgetRow({
       {/* Edit button — sits outside the main button to avoid nesting */}
       <button
         onClick={onEdit}
-        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center text-gray-300 active:text-gray-500 rounded-full active:bg-gray-100"
+        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center text-gray-300 hover:text-gray-500 active:text-gray-500 rounded-full hover:bg-gray-100 active:bg-gray-100"
         aria-label="Edit budget"
       >
         <span className="text-lg leading-none tracking-tighter">···</span>

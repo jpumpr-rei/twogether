@@ -44,7 +44,7 @@ export default function CategoryDetailClient({
       <div className="bg-white px-4 pt-14 pb-4 flex items-center gap-3 border-b border-gray-100">
         <button
           onClick={() => router.back()}
-          className="text-orange-500 font-medium text-base active:opacity-60 mr-1"
+          className="text-orange-500 font-medium text-base hover:opacity-75 active:opacity-60 mr-1"
         >
           ← Back
         </button>
@@ -57,7 +57,7 @@ export default function CategoryDetailClient({
         <h1 className="font-bold text-gray-900 text-lg flex-1 truncate">{category.name}</h1>
         <button
           onClick={() => setShowEdit(true)}
-          className="text-orange-500 font-medium text-sm active:opacity-60"
+          className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
         >
           {budget ? "Edit" : "Set budget"}
         </button>
@@ -96,7 +96,7 @@ export default function CategoryDetailClient({
             <p className="text-gray-600 text-sm mb-3">No budget set for this category.</p>
             <button
               onClick={() => setShowEdit(true)}
-              className="bg-orange-500 text-white font-semibold rounded-xl px-5 py-2.5 text-sm active:bg-orange-600"
+              className="bg-orange-500 text-white font-semibold rounded-xl px-5 py-2.5 text-sm hover:bg-orange-600 active:bg-orange-600"
             >
               Set a budget
             </button>
@@ -118,7 +118,7 @@ export default function CategoryDetailClient({
                 <button
                   key={tx.id}
                   onClick={() => setSelectedTx(tx)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 transition-colors"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-50 transition-colors"
                 >
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0"

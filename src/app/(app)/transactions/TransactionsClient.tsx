@@ -37,7 +37,7 @@ function SyncButton({ onSynced }: { onSynced: () => void }) {
       <button
         onClick={handleSync}
         disabled={syncing}
-        className="flex items-center gap-1.5 text-xs font-medium text-orange-500 disabled:opacity-50 py-1 px-2 rounded-lg active:bg-orange-50"
+        className="flex items-center gap-1.5 text-xs font-medium text-orange-500 disabled:opacity-50 py-1 px-2 rounded-lg hover:bg-orange-50 active:bg-orange-50"
       >
         <span className={syncing ? "animate-spin inline-block" : ""}>↻</span>
         {syncing ? "Syncing…" : "Sync"}
@@ -71,7 +71,7 @@ function AccountFilterSheet({
           {selectedIds.size > 0 && (
             <button
               onClick={onClearAll}
-              className="text-orange-500 text-sm font-medium active:opacity-60"
+              className="text-orange-500 text-sm font-medium hover:opacity-75 active:opacity-60"
             >
               Show all
             </button>
@@ -84,7 +84,7 @@ function AccountFilterSheet({
               <button
                 key={card.id}
                 onClick={() => onToggle(card.id)}
-                className="w-full px-5 py-4 flex items-center gap-3 active:bg-gray-50"
+                className="w-full px-5 py-4 flex items-center gap-3 hover:bg-gray-50 active:bg-gray-50"
               >
                 {/* Checkbox */}
                 <div
@@ -133,7 +133,7 @@ function TxListRow({ tx, onTap }: { tx: TxRow; onTap: () => void }) {
   return (
     <button
       onClick={onTap}
-      className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 transition-colors"
+      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-50 transition-colors"
     >
       <div
         className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
@@ -254,7 +254,7 @@ export default function TransactionsClient({
         {search && (
           <button
             onClick={() => setSearch("")}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 active:text-gray-500 text-lg leading-none"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 active:text-gray-500 text-lg leading-none"
           >
             ×
           </button>
@@ -266,7 +266,7 @@ export default function TransactionsClient({
         {/* Date */}
         <button
           onClick={() => setShowDateFilter(true)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm active:opacity-80 ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm hover:opacity-90 active:opacity-80 ${
             isDateFiltered
               ? "bg-orange-500 border-orange-500 text-white"
               : "bg-white border-gray-200 text-gray-700"
@@ -278,7 +278,7 @@ export default function TransactionsClient({
             <span
               role="button"
               onClick={(e) => { e.stopPropagation(); handleFilterSelect({ type: "all" }); }}
-              className="opacity-80 hover:opacity-100 leading-none"
+              className="opacity-80 hover:opacity-100 leading-none cursor-pointer"
             >
               ×
             </span>
@@ -291,7 +291,7 @@ export default function TransactionsClient({
         {cards.length > 0 && (
           <button
             onClick={() => setShowAccountFilter(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm active:opacity-80 ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm hover:opacity-90 active:opacity-80 ${
               selectedCardIds.size > 0
                 ? "bg-orange-500 border-orange-500 text-white"
                 : "bg-white border-gray-200 text-gray-700"
@@ -306,7 +306,7 @@ export default function TransactionsClient({
                   e.stopPropagation();
                   setSelectedCardIds(new Set());
                 }}
-                className="opacity-80 hover:opacity-100 leading-none"
+                className="opacity-80 hover:opacity-100 leading-none cursor-pointer"
               >
                 ×
               </span>

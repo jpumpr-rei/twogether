@@ -65,7 +65,7 @@ export default function EditAccountNameSheet({
         {/* Joint / Private toggle */}
         <button
           onClick={() => setIsPrivate((v) => !v)}
-          className="w-full flex items-center gap-3 py-3 mb-5 active:opacity-80"
+          className="w-full flex items-center gap-3 py-3 mb-5 hover:opacity-90 active:opacity-80"
         >
           {/* Toggle pill */}
           <div
@@ -106,7 +106,7 @@ export default function EditAccountNameSheet({
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 active:bg-orange-600"
+          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600"
         >
           {saving ? "Saving…" : "Save"}
         </button>

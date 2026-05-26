@@ -47,7 +47,7 @@ export default function DateFilterSheet({
           <div className="flex items-center gap-3 mb-5">
             <button
               onClick={() => setShowCustom(false)}
-              className="text-orange-500 font-medium text-sm active:opacity-60"
+              className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
             >
               ← Back
             </button>
@@ -87,7 +87,7 @@ export default function DateFilterSheet({
               }
             }}
             disabled={!customFrom || !customTo || customFrom > customTo}
-            className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 active:bg-orange-600"
+            className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600"
           >
             Apply range
           </button>
@@ -109,7 +109,7 @@ export default function DateFilterSheet({
           {/* All time */}
           <button
             onClick={() => onSelect({ type: "all" })}
-            className="w-full px-5 py-4 flex items-center justify-between active:bg-gray-50"
+            className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-50"
           >
             <span
               className={`text-sm font-medium ${
@@ -126,7 +126,7 @@ export default function DateFilterSheet({
           {/* Custom range */}
           <button
             onClick={() => setShowCustom(true)}
-            className="w-full px-5 py-4 flex items-center justify-between active:bg-gray-50"
+            className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-50"
           >
             <span
               className={`text-sm font-medium ${
@@ -145,7 +145,7 @@ export default function DateFilterSheet({
             <button
               key={value}
               onClick={() => onSelect({ type: "month", month: value })}
-              className="w-full px-5 py-4 flex items-center justify-between active:bg-gray-50"
+              className="w-full px-5 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-50"
             >
               <span
                 className={`text-sm font-medium ${

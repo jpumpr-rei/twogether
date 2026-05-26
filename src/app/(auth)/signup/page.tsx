@@ -43,7 +43,7 @@ export default function SignupPage() {
         <p className="text-gray-500 text-sm max-w-xs">
           We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
         </p>
-        <Link href="/login" className="mt-8 text-orange-500 font-medium text-sm">
+        <Link href="/login" className="mt-8 text-orange-500 font-medium text-sm cursor-pointer hover:opacity-75">
           Back to sign in
         </Link>
       </div>
@@ -106,7 +106,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3 text-base active:bg-orange-600 disabled:opacity-60 transition-colors"
+            className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3 text-base hover:bg-orange-600 active:bg-orange-600 disabled:opacity-60 transition-colors"
           >
             {loading ? "Creating account…" : "Create account"}
           </button>
@@ -114,7 +114,7 @@ export default function SignupPage() {
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Already have an account?{" "}
-          <Link href="/login" className="text-orange-500 font-medium">
+          <Link href="/login" className="text-orange-500 font-medium cursor-pointer hover:opacity-75">
             Sign in
           </Link>
         </p>

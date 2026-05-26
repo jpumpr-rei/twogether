@@ -134,14 +134,14 @@ export default function AccountsClient({
                         <div className="flex items-center gap-3 flex-shrink-0">
                           <button
                             onClick={() => setConfirmRemoveId(null)}
-                            className="text-sm text-gray-400 font-medium active:opacity-60"
+                            className="text-sm text-gray-400 font-medium hover:opacity-75 active:opacity-60"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={() => handleRemove(card.id)}
                             disabled={removing === card.id}
-                            className="text-sm text-red-500 font-semibold active:opacity-60 disabled:opacity-40"
+                            className="text-sm text-red-500 font-semibold hover:opacity-75 active:opacity-60 disabled:opacity-40"
                           >
                             {removing === card.id ? "Removing…" : "Remove"}
                           </button>
@@ -155,7 +155,7 @@ export default function AccountsClient({
                       {/* Navigate to account detail */}
                       <Link
                         href={`/accounts/${card.id}`}
-                        className="flex items-center gap-3 flex-1 min-w-0 active:opacity-70"
+                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer hover:opacity-80 active:opacity-70"
                       >
                         <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">
                           💳
@@ -204,14 +204,14 @@ export default function AccountsClient({
                       {/* Edit & Remove */}
                       <button
                         onClick={() => setEditingCard(card)}
-                        className="text-gray-300 active:text-orange-500 p-1 flex-shrink-0"
+                        className="text-gray-300 hover:text-orange-500 active:text-orange-500 p-1 flex-shrink-0"
                         aria-label="Edit account name"
                       >
                         ✏️
                       </button>
                       <button
                         onClick={() => setConfirmRemoveId(card.id)}
-                        className="text-gray-300 active:text-red-400 p-1 flex-shrink-0"
+                        className="text-gray-300 hover:text-red-400 active:text-red-400 p-1 flex-shrink-0"
                         aria-label="Remove account"
                       >
                         🗑️

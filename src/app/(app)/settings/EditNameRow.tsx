@@ -54,13 +54,13 @@ export default function EditNameRow({
           <button
             onClick={handleSave}
             disabled={!name.trim()}
-            className="text-sm font-semibold text-orange-500 px-2 py-1 active:opacity-60 disabled:opacity-30"
+            className="text-sm font-semibold text-orange-500 px-2 py-1 hover:opacity-75 active:opacity-60 disabled:opacity-30"
           >
             Save
           </button>
           <button
             onClick={handleCancel}
-            className="text-sm text-gray-400 px-2 py-1 active:opacity-60"
+            className="text-sm text-gray-400 px-2 py-1 hover:opacity-75 active:opacity-60"
           >
             Cancel
           </button>
@@ -79,7 +79,7 @@ export default function EditNameRow({
         </span>
         <button
           onClick={handleEdit}
-          className="text-xs font-semibold text-orange-500 active:opacity-60"
+          className="text-xs font-semibold text-orange-500 hover:opacity-75 active:opacity-60"
         >
           Edit
         </button>

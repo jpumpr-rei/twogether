@@ -41,7 +41,7 @@ export default function RecategorizeSheet({
           <div className="flex items-center gap-3 px-5 py-3 flex-shrink-0 border-b border-gray-50">
             <button
               onClick={() => setPickingCategory(false)}
-              className="text-orange-500 font-medium text-sm"
+              className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
             >
               ← Back
             </button>
@@ -50,7 +50,7 @@ export default function RecategorizeSheet({
           <div className="overflow-y-auto flex-1 pb-safe divide-y divide-gray-50">
             <button
               onClick={() => { setCategoryId(null); setPickingCategory(false); }}
-              className="w-full flex items-center gap-3 px-5 py-3 active:bg-gray-50"
+              className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 active:bg-gray-50"
             >
               <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">
                 ❓
@@ -66,7 +66,7 @@ export default function RecategorizeSheet({
                 <button
                   key={cat.id}
                   onClick={() => { setCategoryId(cat.id); setPickingCategory(false); }}
-                  className="w-full flex items-center gap-3 px-5 py-3 active:bg-gray-50"
+                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 active:bg-gray-50"
                 >
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
@@ -121,7 +121,7 @@ export default function RecategorizeSheet({
         </p>
         <button
           onClick={() => setPickingCategory(true)}
-          className="w-full flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 mb-4 active:bg-gray-100"
+          className="w-full flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 mb-4 hover:bg-gray-200 active:bg-gray-100"
         >
           {currentCategory ? (
             <>
@@ -145,7 +145,7 @@ export default function RecategorizeSheet({
         {tx.merchant_name && (
           <button
             onClick={() => setApplyToAll((v) => !v)}
-            className="w-full flex items-center gap-3 py-3 mb-4 active:opacity-80"
+            className="w-full flex items-center gap-3 py-3 mb-4 hover:opacity-90 active:opacity-80"
           >
             {/* Toggle pill */}
             <div
@@ -173,7 +173,7 @@ export default function RecategorizeSheet({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 active:bg-orange-600"
+          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600"
         >
           {saving ? "Saving…" : applyToAll ? `Move all ${tx.merchant_name ?? ""}` : "Save"}
         </button>

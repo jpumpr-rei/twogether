@@ -16,6 +16,11 @@ body {
   height: 100%;
 }
 
+/* Pointer cursor for all non-disabled buttons */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 /* Safe area insets for iPhone notch / home indicator */
 .safe-top    { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

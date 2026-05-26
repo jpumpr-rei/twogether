@@ -98,7 +98,7 @@ export default function TransactionSheet({
           <div className="flex items-center gap-3 px-5 py-3 flex-shrink-0 border-b border-gray-50">
             <button
               onClick={() => setPickingFor(null)}
-              className="text-orange-500 font-medium text-sm"
+              className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
             >
               ← Back
             </button>
@@ -107,7 +107,7 @@ export default function TransactionSheet({
           <div className="overflow-y-auto flex-1 pb-safe divide-y divide-gray-50">
             <button
               onClick={() => pickCategory(null)}
-              className="w-full flex items-center gap-3 px-5 py-3 active:bg-gray-50"
+              className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 active:bg-gray-50"
             >
               <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg flex-shrink-0">
                 ❓
@@ -123,7 +123,7 @@ export default function TransactionSheet({
                 <button
                   key={cat.id}
                   onClick={() => pickCategory(cat.id)}
-                  className="w-full flex items-center gap-3 px-5 py-3 active:bg-gray-50"
+                  className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 active:bg-gray-50"
                 >
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
@@ -179,7 +179,7 @@ export default function TransactionSheet({
             </p>
             <button
               onClick={() => setPickingFor("single")}
-              className="w-full flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 mb-4 active:bg-gray-100"
+              className="w-full flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 mb-4 hover:bg-gray-200 active:bg-gray-100"
             >
               {currentCategory ? (
                 <>
@@ -202,7 +202,7 @@ export default function TransactionSheet({
             {tx.merchant_name && (
               <button
                 onClick={() => setApplyToAll((v) => !v)}
-                className="w-full flex items-center gap-3 py-3 mb-1 active:opacity-80"
+                className="w-full flex items-center gap-3 py-3 mb-1 hover:opacity-90 active:opacity-80"
               >
                 <div
                   className={`w-12 h-7 rounded-full flex items-center px-0.5 flex-shrink-0 transition-colors duration-200 ${
@@ -228,7 +228,7 @@ export default function TransactionSheet({
 
             <button
               onClick={() => setMode("split")}
-              className="w-full text-orange-500 font-medium text-sm py-2.5 border border-orange-200 rounded-xl active:bg-orange-50 mb-3"
+              className="w-full text-orange-500 font-medium text-sm py-2.5 border border-orange-200 rounded-xl hover:bg-orange-50 active:bg-orange-50 mb-3"
             >
               Split transaction
             </button>
@@ -236,7 +236,7 @@ export default function TransactionSheet({
             <button
               onClick={handleSaveSingle}
               disabled={saving}
-              className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 active:bg-orange-600 mb-safe"
+              className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600 mb-safe"
             >
               {saving ? "Saving…" : applyToAll ? `Move all ${tx.merchant_name ?? ""}` : "Done"}
             </button>
@@ -252,7 +252,7 @@ export default function TransactionSheet({
               </p>
               <button
                 onClick={() => setMode("single")}
-                className="text-xs text-gray-400 font-medium active:opacity-60"
+                className="text-xs text-gray-400 font-medium hover:opacity-75 active:opacity-60"
               >
                 Don't split
               </button>
@@ -269,7 +269,7 @@ export default function TransactionSheet({
                     {/* Category chip */}
                     <button
                       onClick={() => setPickingFor(i)}
-                      className="flex items-center gap-2 flex-1 min-w-0 bg-gray-50 rounded-xl px-3 py-2.5 active:bg-gray-100"
+                      className="flex items-center gap-2 flex-1 min-w-0 bg-gray-50 rounded-xl px-3 py-2.5 hover:bg-gray-200 active:bg-gray-100"
                     >
                       <div
                         className="w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0"
@@ -323,7 +323,7 @@ export default function TransactionSheet({
                     {!isLast && splits.length > 2 ? (
                       <button
                         onClick={() => removeSplit(i)}
-                        className="text-gray-300 active:text-red-400 w-6 text-xl leading-none flex-shrink-0"
+                        className="text-gray-300 hover:text-red-400 active:text-red-400 w-6 text-xl leading-none flex-shrink-0"
                       >
                         ×
                       </button>
@@ -343,7 +343,7 @@ export default function TransactionSheet({
 
             <button
               onClick={addSplit}
-              className="w-full text-orange-500 text-sm font-medium py-2 active:opacity-60 mb-3"
+              className="w-full text-orange-500 text-sm font-medium py-2 hover:opacity-75 active:opacity-60 mb-3"
             >
               + Add split
             </button>
@@ -351,7 +351,7 @@ export default function TransactionSheet({
             <button
               onClick={handleSaveSplits}
               disabled={saving || isOverSplit || remainder === absAmount}
-              className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 active:bg-orange-600 mb-safe"
+              className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600 mb-safe"
             >
               {saving ? "Saving…" : "Save splits"}
             </button>

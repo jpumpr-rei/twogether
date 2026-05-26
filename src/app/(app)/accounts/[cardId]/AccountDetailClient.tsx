@@ -82,20 +82,20 @@ export default function AccountDetailClient({
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => router.back()}
-            className="text-orange-500 font-medium text-base active:opacity-60"
+            className="text-orange-500 font-medium text-base hover:opacity-75 active:opacity-60"
           >
             ← Back
           </button>
           <div className="flex items-center gap-4">
             <button
               onClick={() => setShowEditName(true)}
-              className="text-orange-500 font-medium text-sm active:opacity-60"
+              className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
             >
               Edit
             </button>
             <button
               onClick={() => setConfirmRemove(true)}
-              className="text-red-400 font-medium text-sm active:opacity-60"
+              className="text-red-400 font-medium text-sm hover:opacity-75 active:opacity-60"
             >
               Remove
             </button>
@@ -142,7 +142,7 @@ export default function AccountDetailClient({
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 active:text-gray-500 text-lg leading-none"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 active:text-gray-500 text-lg leading-none"
             >
               ×
             </button>
@@ -153,7 +153,7 @@ export default function AccountDetailClient({
         <div className="flex gap-2">
           <button
             onClick={() => setShowDateFilter(true)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm active:opacity-80 ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm hover:opacity-90 active:opacity-80 ${
               isDateFiltered
                 ? "bg-orange-500 border-orange-500 text-white"
                 : "bg-white border-gray-200 text-gray-700"
@@ -168,7 +168,7 @@ export default function AccountDetailClient({
                   e.stopPropagation();
                   handleFilterSelect({ type: "all" });
                 }}
-                className="opacity-80 hover:opacity-100 leading-none"
+                className="opacity-80 hover:opacity-100 leading-none cursor-pointer"
               >
                 ×
               </span>
@@ -205,7 +205,7 @@ export default function AccountDetailClient({
                       <button
                         key={tx.id}
                         onClick={() => setSelectedTx(tx)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 transition-colors"
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-50 transition-colors"
                       >
                         <div
                           className="w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0"
@@ -293,14 +293,14 @@ export default function AccountDetailClient({
             <button
               onClick={handleRemove}
               disabled={removing}
-              className="w-full bg-red-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 active:bg-red-600 mb-3"
+              className="w-full bg-red-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 hover:bg-red-600 active:bg-red-600 mb-3"
             >
               {removing ? "Removing…" : "Remove account"}
             </button>
             <button
               onClick={() => setConfirmRemove(false)}
               disabled={removing}
-              className="w-full text-gray-500 font-medium py-2 text-sm active:opacity-60"
+              className="w-full text-gray-500 font-medium py-2 text-sm hover:opacity-75 active:opacity-60"
             >
               Cancel
             </button>
