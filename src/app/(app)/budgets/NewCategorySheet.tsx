@@ -16,6 +16,16 @@ const PRESET_COLORS = [
   "#6b7280", // gray
 ];
 
+const PRESET_ICONS = [
+  "🛒", "🍔", "🍕", "☕", "🍷", "🥗",
+  "🏠", "🚗", "✈️", "🚌", "⛽", "🚲",
+  "👗", "👟", "💄", "💇", "💆", "🛍️",
+  "💊", "🏥", "🦷", "💪", "🧘", "🏋️",
+  "🎬", "🎵", "🎮", "📚", "🎨", "🎁",
+  "📱", "💻", "🔧", "🌿", "🐾", "🧒",
+  "🎓", "🌐", "💰", "🏦", "🛡️", "📦",
+];
+
 export default function NewCategorySheet({
   onClose,
   onSaved,
@@ -24,7 +34,7 @@ export default function NewCategorySheet({
   onSaved: () => void;
 }) {
   const [name, setName] = useState("");
-  const [icon, setIcon] = useState("");
+  const [icon, setIcon] = useState<string | null>(null);
   const [color, setColor] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +50,7 @@ export default function NewCategorySheet({
     setSaving(true);
     setError(null);
     try {
-      await createCategory(name.trim(), icon.trim() || null, color);
+      await createCategory(name.trim(), icon, color);
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -49,12 +59,12 @@ export default function NewCategorySheet({
   }
 
   const iconBg = color ? color + "22" : "#f3f4f6";
-  const previewIcon = icon.trim() || "📦";
+  const previewIcon = icon ?? "📦";
 
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
-      <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] px-6 pt-4 pb-safe shadow-2xl">
+      <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] px-6 pt-4 shadow-2xl max-h-[90vh] overflow-y-auto pb-safe">
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
 
         {/* Preview */}
@@ -74,7 +84,7 @@ export default function NewCategorySheet({
         </div>
 
         {/* Name */}
-        <div className="mb-4">
+        <div className="mb-5">
           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
             Name
           </label>
@@ -90,27 +100,31 @@ export default function NewCategorySheet({
           />
         </div>
 
-        {/* Emoji */}
-        <div className="mb-4">
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-            Icon (emoji)
+        {/* Icon grid */}
+        <div className="mb-5">
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+            Icon
           </label>
-          <input
-            type="text"
-            value={icon}
-            onChange={(e) => {
-              // Keep only the first grapheme cluster (one emoji/char)
-              const val = [...e.target.value].slice(0, 2).join("");
-              setIcon(val);
-            }}
-            placeholder="📦"
-            className="w-20 rounded-xl border border-gray-200 px-4 py-3 text-2xl text-center focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
+          <div className="grid grid-cols-6 gap-2">
+            {PRESET_ICONS.map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => setIcon(icon === emoji ? null : emoji)}
+                className={`w-full aspect-square rounded-xl text-2xl flex items-center justify-center transition-colors ${
+                  icon === emoji
+                    ? "bg-orange-100 ring-2 ring-orange-400"
+                    : "bg-gray-50 hover:bg-gray-100 active:bg-gray-200"
+                }`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Color */}
-        <div className="mb-5">
-          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+        {/* Color swatches */}
+        <div className="mb-6">
+          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
             Color
           </label>
           <div className="flex gap-2 flex-wrap">
@@ -135,7 +149,7 @@ export default function NewCategorySheet({
         <button
           onClick={handleSave}
           disabled={saving || !name.trim()}
-          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-base disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600"
+          className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-base disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600 mb-2"
         >
           {saving ? "Creating…" : "Create category"}
         </button>

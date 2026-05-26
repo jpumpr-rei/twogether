@@ -88,7 +88,16 @@ export default function BudgetsClient({
 
   return (
     <div className="px-4 pt-12 pb-6">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Budgets</h1>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold text-gray-900">Budgets</h1>
+        <button
+          onClick={() => setShowNewCategory(true)}
+          className="bg-orange-500 text-white text-sm font-semibold rounded-xl px-4 py-2 hover:bg-orange-600 active:bg-orange-600"
+        >
+          Add Category
+        </button>
+      </div>
 
       {/* View type toggle */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-4">
@@ -157,16 +166,6 @@ export default function BudgetsClient({
           />
         ))}
 
-        {/* Add category button */}
-        <button
-          onClick={() => setShowNewCategory(true)}
-          className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-orange-300 hover:text-orange-400 active:border-orange-400 active:text-orange-500 transition-colors"
-        >
-          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xl flex-shrink-0">
-            +
-          </div>
-          <span className="text-sm font-semibold">Add category</span>
-        </button>
       </div>
 
       {showNewCategory && (
