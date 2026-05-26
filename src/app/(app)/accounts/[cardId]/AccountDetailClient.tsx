@@ -20,12 +20,14 @@ export default function AccountDetailClient({
   categories,
   activeFilter,
   cardId,
+  ownerName,
 }: {
   card: AccountCardRow;
   transactions: TxRow[];
   categories: CategoryInfo[];
   activeFilter: DateFilter;
   cardId: string;
+  ownerName: string;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -118,6 +120,7 @@ export default function AccountDetailClient({
             <p className="text-xs text-gray-400 capitalize">
               {card.institution_name} · {card.account_type}
               {card.last_four && ` ·· ${card.last_four}`}
+              {" · "}<span className="text-gray-500 font-medium not-italic">{ownerName}</span>
             </p>
           </div>
         </div>

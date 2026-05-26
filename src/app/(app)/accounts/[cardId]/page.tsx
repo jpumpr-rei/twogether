@@ -6,6 +6,7 @@ import type { TxRow, CategoryInfo } from "../../transactions/types";
 
 export type AccountCardRow = {
   id: string;
+  owner_id: string;
   institution_name: string;
   account_name: string;
   last_four: string | null;
@@ -31,11 +32,24 @@ export default async function AccountDetailPage({
 
   const { data: cardData } = await supabase
     .from("cards")
-    .select("id, institution_name, account_name, last_four, account_type, is_private")
+    .select("id, owner_id, institution_name, account_name, last_four, account_type, is_private")
     .eq("id", cardId)
     .single();
 
   if (!cardData) redirect("/accounts");
+
+  // Resolve owner display name
+  const card = cardData as AccountCardRow;
+  let ownerName = "Mine";
+  if (card.owner_id !== user.id) {
+    const { data: ownerProfile } = await supabase
+      .from("profiles")
+      .select("display_name, email")
+      .eq("id", card.owner_id)
+      .single();
+    ownerName = (ownerProfile?.display_name ?? ownerProfile?.email?.split("@")[0] ?? "Partner")
+      .split(" ")[0];
+  }
 
   const activeFilter = parseDateFilter(spParams);
   const { startDate, endDate } = dateFilterBounds(activeFilter);
@@ -82,11 +96,12 @@ export default async function AccountDetailPage({
 
   return (
     <AccountDetailClient
-      card={cardData as AccountCardRow}
+      card={card}
       transactions={transactions}
       categories={categories}
       activeFilter={activeFilter}
       cardId={cardId}
+      ownerName={ownerName}
     />
   );
 }

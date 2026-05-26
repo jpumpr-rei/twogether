@@ -9,6 +9,7 @@ import { removeCard } from "./actions";
 
 export type CardDisplay = {
   id: string;
+  owner_id: string;
   institution_name: string;
   account_name: string;
   last_four: string | null;
@@ -17,7 +18,15 @@ export type CardDisplay = {
   is_private: boolean;
 };
 
-export default function AccountsClient({ initialCards }: { initialCards: CardDisplay[] }) {
+export default function AccountsClient({
+  initialCards,
+  currentUserId,
+  ownerNames,
+}: {
+  initialCards: CardDisplay[];
+  currentUserId: string;
+  ownerNames: Record<string, string>;
+}) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [cards, setCards] = useState(initialCards);
@@ -49,6 +58,19 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
     }
   }
 
+  function ownerLabel(card: CardDisplay): string {
+    if (card.owner_id === currentUserId) return "Mine";
+    return ownerNames[card.owner_id] ?? "Partner";
+  }
+
+  // Total net balance (depository positive, credit negative)
+  const hasBalances = cards.some((c) => c.balance_current !== null);
+  const totalBalance = cards.reduce((sum, card) => {
+    if (card.balance_current === null) return sum;
+    const isCredit = card.account_type === "credit" || card.account_type === "credit card";
+    return sum + (isCredit ? -card.balance_current : card.balance_current);
+  }, 0);
+
   // Group by institution
   const institutions = new Map<string, CardDisplay[]>();
   for (const card of cards) {
@@ -59,16 +81,33 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
 
   return (
     <>
-      {/* Add account button */}
-      <div className="mb-5">
-        <PlaidConnectButton />
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
+        <PlaidConnectButton label="Add Account" compact />
       </div>
 
+      {/* Total balance */}
+      {hasBalances && cards.length > 0 && (
+        <div className="mb-5">
+          <p className="text-xs text-gray-400 mt-0.5">
+            Net balance{" "}
+            <span className={`font-semibold tabular-nums ${totalBalance < 0 ? "text-red-500" : "text-gray-700"}`}>
+              {totalBalance < 0 ? "-" : ""}$
+              {Math.abs(totalBalance).toLocaleString("en-US", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+          </p>
+        </div>
+      )}
+
       {cards.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 text-sm space-y-2">
+        <div className="text-center py-16 text-gray-400 text-sm space-y-2 mt-4">
           <p className="text-4xl">🏦</p>
           <p>No accounts connected yet.</p>
-          <p>Tap above to link your first bank account.</p>
+          <p>Tap Add Account to link your first bank.</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -112,7 +151,7 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
                   }
 
                   return (
-                    <div key={card.id} className="flex items-center gap-3 px-4 py-4">
+                    <div key={card.id} className="flex items-center gap-3 px-4 py-3">
                       {/* Navigate to account detail */}
                       <Link
                         href={`/accounts/${card.id}`}
@@ -135,6 +174,8 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
                           <p className="text-xs text-gray-400 capitalize">
                             {card.account_type}
                             {card.last_four && ` ·· ${card.last_four}`}
+                            {" · "}
+                            <span className="text-gray-500 font-medium">{ownerLabel(card)}</span>
                           </p>
                         </div>
                       </Link>
@@ -154,7 +195,6 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
                                 maximumFractionDigits: 2,
                               })}
                             </p>
-                            <p className="text-xs text-gray-400">current</p>
                           </>
                         ) : (
                           <p className="text-xs text-gray-300">—</p>

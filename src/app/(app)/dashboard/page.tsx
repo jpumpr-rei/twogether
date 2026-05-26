@@ -14,7 +14,8 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  const name = profile?.display_name ?? user.email?.split("@")[0] ?? "there";
+  const fullName = profile?.display_name ?? user.email?.split("@")[0] ?? "there";
+  const name = fullName.split(" ")[0];
 
   type TxRow = {
     id: string;
@@ -40,7 +41,7 @@ export default async function DashboardPage() {
       {/* Greeting */}
       <div>
         <p className="text-gray-500 text-sm">Good to see you,</p>
-        <h1 className="text-2xl font-bold text-gray-900 capitalize">{name} 👋</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{name} 👋</h1>
       </div>
 
       {/* No couple yet */}

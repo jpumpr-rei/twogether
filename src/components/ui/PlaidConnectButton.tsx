@@ -4,7 +4,13 @@ import { useState, useEffect, useCallback } from "react";
 import { usePlaidLink, PlaidLinkOnSuccess } from "react-plaid-link";
 import { useRouter } from "next/navigation";
 
-export default function PlaidConnectButton() {
+export default function PlaidConnectButton({
+  label,
+  compact = false,
+}: {
+  label?: string;
+  compact?: boolean;
+} = {}) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
@@ -81,14 +87,21 @@ export default function PlaidConnectButton() {
     }
   }
 
+  const defaultLabel = label ?? "Connect a bank account";
+  const buttonLabel = fetching ? (token ? "Saving…" : "Connecting…") : defaultLabel;
+
   return (
     <div>
       <button
         onClick={handleClick}
         disabled={fetching || (token !== null && !ready)}
-        className="w-full bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600 disabled:opacity-50"
+        className={
+          compact
+            ? "bg-orange-500 text-white text-sm font-semibold rounded-xl px-4 py-2 active:bg-orange-600 disabled:opacity-50"
+            : "w-full bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600 disabled:opacity-50"
+        }
       >
-        {fetching ? (token ? "Saving…" : "Connecting…") : "Connect a bank account"}
+        {buttonLabel}
       </button>
       {error && <p className="text-xs text-red-500 mt-2 text-center">{error}</p>}
     </div>
