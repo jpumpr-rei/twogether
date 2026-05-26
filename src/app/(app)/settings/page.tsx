@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SignOutButton from "@/components/ui/SignOutButton";
+import CoupleSection from "./CoupleSection";
+import EditNameRow from "./EditNameRow";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -17,13 +19,25 @@ export default async function SettingsPage() {
 
   type CoupleRow = { name: string | null; invite_code: string };
   let couple: CoupleRow | null = null;
+  type PartnerRow = { display_name: string | null; email: string } | null;
+  let partner: PartnerRow = null;
+
   if (profile?.couple_id) {
-    const { data } = await supabase
-      .from("couples")
-      .select("name, invite_code")
-      .eq("id", profile.couple_id)
-      .single();
-    couple = data as CoupleRow | null;
+    const [{ data: coupleData }, { data: partnerData }] = await Promise.all([
+      supabase
+        .from("couples")
+        .select("name, invite_code")
+        .eq("id", profile.couple_id)
+        .single(),
+      supabase
+        .from("profiles")
+        .select("display_name, email")
+        .eq("couple_id", profile.couple_id)
+        .neq("id", user.id)
+        .maybeSingle(),
+    ]);
+    couple = coupleData as CoupleRow | null;
+    partner = partnerData as PartnerRow;
   }
 
   return (
@@ -32,30 +46,13 @@ export default async function SettingsPage() {
 
       {/* Profile */}
       <Section title="Profile">
-        <Row label="Name" value={profile?.display_name ?? "—"} />
+        <EditNameRow initialName={profile?.display_name ?? null} />
         <Row label="Email" value={user.email ?? "—"} />
       </Section>
 
-      {/* Couple */}
-      <Section title="Your couple">
-        {couple ? (
-          <>
-            <Row label="Couple name" value={couple.name ?? "Unnamed couple"} />
-            <Row label="Invite code" value={couple.invite_code} mono />
-          </>
-        ) : (
-          <div className="px-4 py-4 text-sm text-gray-500 space-y-3">
-            <p>You haven&apos;t linked with a partner yet.</p>
-            <div className="flex gap-2">
-              <button className="flex-1 bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 active:bg-orange-600">
-                Create invite
-              </button>
-              <button className="flex-1 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl py-2.5 active:bg-gray-50">
-                Enter code
-              </button>
-            </div>
-          </div>
-        )}
+      {/* Household / Partner */}
+      <Section title="Household">
+        <CoupleSection couple={couple} partner={partner} />
       </Section>
 
       <SignOutButton />
