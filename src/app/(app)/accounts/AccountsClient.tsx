@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PlaidConnectButton from "@/components/ui/PlaidConnectButton";
+import SyncButton from "@/components/ui/SyncButton";
 import EditAccountNameSheet from "./EditAccountNameSheet";
 import { removeCard } from "./actions";
 
@@ -22,10 +23,12 @@ export default function AccountsClient({
   initialCards,
   currentUserId,
   ownerNames,
+  lastSyncedAt,
 }: {
   initialCards: CardDisplay[];
   currentUserId: string;
   ownerNames: Record<string, string>;
+  lastSyncedAt: string | null;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -53,6 +56,23 @@ export default function AccountsClient({
 
   function refresh() {
     startTransition(() => router.refresh());
+  }
+
+  function handleSynced() {
+    // Re-fetch balances from Plaid after a sync
+    setBalancesLoading(true);
+    fetch("/api/plaid/balances")
+      .then((r) => r.json())
+      .then(({ balances }: { balances: Record<string, number | null> }) => {
+        setCards((prev) =>
+          prev.map((c) => ({ ...c, balance_current: balances[c.id] ?? null }))
+        );
+      })
+      .catch(() => {})
+      .finally(() => {
+        setBalancesLoading(false);
+        refresh();
+      });
   }
 
   function handleNameSaved(cardId: string, newName: string, isPrivate: boolean) {
@@ -99,9 +119,12 @@ export default function AccountsClient({
   return (
     <>
       {/* Header row */}
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-start justify-between mb-1">
         <h1 className="text-2xl font-bold text-gray-900">Accounts</h1>
-        <PlaidConnectButton label="Add Account" compact />
+        <div className="flex items-start gap-2">
+          <SyncButton lastSyncedAt={lastSyncedAt} onSynced={handleSynced} />
+          <PlaidConnectButton label="Add Account" compact />
+        </div>
       </div>
 
       {/* Total balance */}

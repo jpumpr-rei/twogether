@@ -29,9 +29,10 @@ export default async function AccountsPage() {
 
   let cards: CardDisplay[] = [];
   let ownerNames: Record<string, string> = {};
+  let lastSyncedAt: string | null = null;
 
   if (coupleId) {
-    const [{ data: cardData }, { data: profileData }] = await Promise.all([
+    const [{ data: cardData }, { data: profileData }, { data: coupleData }] = await Promise.all([
       supabase
         .from("cards")
         .select("id, owner_id, institution_name, account_name, last_four, account_type, is_private")
@@ -39,7 +40,12 @@ export default async function AccountsPage() {
         .eq("is_active", true)
         .order("institution_name"),
       supabase.from("profiles").select("id, display_name, email").eq("couple_id", coupleId),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).from("couples").select("last_synced_at").eq("id", coupleId).single(),
     ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lastSyncedAt = (coupleData as any)?.last_synced_at ?? null;
 
     const rawCards = (cardData ?? []) as CardRow[];
 
@@ -68,6 +74,7 @@ export default async function AccountsPage() {
         initialCards={cards}
         currentUserId={user.id}
         ownerNames={ownerNames}
+        lastSyncedAt={lastSyncedAt}
       />
     </div>
   );
