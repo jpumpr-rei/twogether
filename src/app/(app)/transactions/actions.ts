@@ -42,9 +42,10 @@ export async function recategorize(
       await supabase.from("transaction_splits").delete().in("transaction_id", ids);
     }
 
-    const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from("transactions")
-      .update({ category_id: newCategoryId })
+      .update({ category_id: newCategoryId, category_manually_set: true })
       .eq("couple_id", coupleId)
       .eq("merchant_name", merchantName);
     if (error) throw error;
@@ -54,9 +55,10 @@ export async function recategorize(
       .delete()
       .eq("transaction_id", transactionId);
 
-    const { error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
       .from("transactions")
-      .update({ category_id: newCategoryId })
+      .update({ category_id: newCategoryId, category_manually_set: true })
       .eq("id", transactionId)
       .eq("couple_id", coupleId); // ownership check
     if (error) throw error;
@@ -78,9 +80,10 @@ export async function assignCategory(
     .delete()
     .eq("transaction_id", transactionId);
 
-  const { error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
     .from("transactions")
-    .update({ category_id: categoryId })
+    .update({ category_id: categoryId, category_manually_set: true })
     .eq("id", transactionId)
     .eq("couple_id", coupleId); // ownership check
   if (error) throw error;
@@ -110,10 +113,12 @@ export async function saveSplits(
   );
   if (error) throw error;
 
-  // Clear direct category so budget queries don't double-count
-  await supabase
+  // Clear direct category so budget queries don't double-count.
+  // Mark as manually set so sync doesn't reassign a Plaid category.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabase as any)
     .from("transactions")
-    .update({ category_id: null })
+    .update({ category_id: null, category_manually_set: true })
     .eq("id", transactionId);
 
   revalidatePath("/transactions");

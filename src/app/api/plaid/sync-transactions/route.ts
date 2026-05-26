@@ -58,6 +58,20 @@ export async function POST() {
     }
   }
 
+  // Fetch plaid_transaction_ids that were manually categorized so sync
+  // never overwrites the user's choice.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: manualRows } = await (supabase as any)
+    .from("transactions")
+    .select("plaid_transaction_id")
+    .eq("couple_id", coupleId)
+    .eq("category_manually_set", true)
+    .not("plaid_transaction_id", "is", null);
+
+  const manualIds = new Set<string>(
+    (manualRows ?? []).map((r: { plaid_transaction_id: string }) => r.plaid_transaction_id)
+  );
+
   const endDate = new Date().toISOString().split("T")[0];
   const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
     .toISOString()
@@ -87,13 +101,19 @@ export async function POST() {
 
         for (const tx of txs) {
           const cardId = accountToCard.get(tx.account_id) ?? null;
-          const categoryId = bestCategory(
-            {
-              merchant_name: tx.merchant_name ?? tx.name,
-              personal_finance_category: tx.personal_finance_category,
-            },
-            categoryMap
-          );
+          const isManual = manualIds.has(tx.transaction_id);
+
+          // Only auto-assign category for transactions the user hasn't
+          // manually categorized — preserves their overrides across syncs.
+          const categoryId = isManual
+            ? undefined
+            : bestCategory(
+                {
+                  merchant_name: tx.merchant_name ?? tx.name,
+                  personal_finance_category: tx.personal_finance_category,
+                },
+                categoryMap
+              );
 
           await supabase.from("transactions").upsert(
             {
@@ -105,7 +125,7 @@ export async function POST() {
               currency: tx.iso_currency_code ?? "USD",
               date: tx.date,
               is_pending: tx.pending,
-              category_id: categoryId,
+              ...(categoryId !== undefined && { category_id: categoryId }),
             },
             { onConflict: "plaid_transaction_id" }
           );
