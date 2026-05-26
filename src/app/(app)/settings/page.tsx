@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import SignOutButton from "@/components/ui/SignOutButton";
-import PlaidConnectButton from "@/components/ui/PlaidConnectButton";
+import ConnectedCardsSection from "./ConnectedCardsSection";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -79,37 +79,7 @@ export default async function SettingsPage() {
 
       {/* Connected accounts */}
       <Section title="Connected accounts">
-        {cards.length > 0 ? (
-          <>
-            {cards.map((card) => (
-              <div key={card.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-base flex-shrink-0">
-                  🏦
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 text-sm truncate">
-                    {card.institution_name}
-                  </p>
-                  <p className="text-xs text-gray-400 capitalize">
-                    {card.account_name}
-                    {card.last_four && (
-                      <span className="ml-1">·· {card.last_four}</span>
-                    )}
-                  </p>
-                </div>
-                <span className="text-xs text-gray-400 capitalize">{card.account_type}</span>
-              </div>
-            ))}
-            <div className="px-4 py-3">
-              <PlaidConnectButton />
-            </div>
-          </>
-        ) : (
-          <div className="px-4 py-4 text-sm text-gray-500 space-y-3">
-            <p>No accounts connected yet. Link your bank to start tracking spending.</p>
-            <PlaidConnectButton />
-          </div>
-        )}
+        <ConnectedCardsSection cards={cards} />
       </Section>
 
       <SignOutButton />
