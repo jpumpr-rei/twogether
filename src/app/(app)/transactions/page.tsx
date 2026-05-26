@@ -1,9 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import TransactionsClient from "./TransactionsClient";
-import type { TxRow, CategoryInfo } from "./types";
+import type { TxRow, CategoryInfo, CardInfo } from "./types";
 
-export default async function TransactionsPage() {
+export default async function TransactionsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
+  const { month } = await searchParams;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -18,25 +24,39 @@ export default async function TransactionsPage() {
 
   const coupleId = profile?.couple_id ?? null;
 
+  // Default to current month
+  const now = new Date();
+  const activeMonth =
+    month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [year, mon] = activeMonth.split("-").map(Number);
+  const startDate = `${activeMonth}-01`;
+  const endDate = new Date(year, mon, 0).toISOString().split("T")[0]; // last day of month
+
   let transactions: TxRow[] = [];
   let categories: CategoryInfo[] = [];
+  let cards: CardInfo[] = [];
 
   if (coupleId) {
-    const [{ data: txData }, { data: catData }] = await Promise.all([
+    const [{ data: txData }, { data: catData }, { data: cardData }] = await Promise.all([
       supabase
         .from("transactions")
         .select(
-          `id, merchant_name, amount, date, is_pending, category_id,
+          `id, merchant_name, amount, date, is_pending, category_id, card_id,
            category:categories(id, name, icon, color),
            card:cards(institution_name, last_four)`
         )
         .eq("couple_id", coupleId)
+        .gte("date", startDate)
+        .lte("date", endDate)
         .order("date", { ascending: false })
-        .limit(200),
+        .limit(500),
+      supabase.from("categories").select("id, name, icon, color").order("name"),
       supabase
-        .from("categories")
-        .select("id, name, icon, color")
-        .order("name"),
+        .from("cards")
+        .select("id, institution_name, account_name, last_four")
+        .eq("couple_id", coupleId)
+        .eq("is_active", true)
+        .order("institution_name"),
     ]);
 
     const baseTxs = (txData ?? []) as unknown as Omit<TxRow, "splits">[];
@@ -59,7 +79,15 @@ export default async function TransactionsPage() {
 
     transactions = baseTxs.map((tx) => ({ ...tx, splits: splitsMap.get(tx.id) ?? [] }));
     categories = (catData ?? []) as CategoryInfo[];
+    cards = (cardData ?? []) as CardInfo[];
   }
 
-  return <TransactionsClient transactions={transactions} categories={categories} />;
+  return (
+    <TransactionsClient
+      transactions={transactions}
+      categories={categories}
+      cards={cards}
+      activeMonth={activeMonth}
+    />
+  );
 }

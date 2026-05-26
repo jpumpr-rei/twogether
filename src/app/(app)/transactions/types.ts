@@ -19,7 +19,15 @@ export type TxRow = {
   date: string;
   is_pending: boolean;
   category_id: string | null;
+  card_id: string | null;
   category: CategoryInfo | null;
   card: { institution_name: string; last_four: string | null } | null;
   splits: SplitRow[];
+};
+
+export type CardInfo = {
+  id: string;
+  institution_name: string;
+  account_name: string | null;
+  last_four: string | null;
 };
