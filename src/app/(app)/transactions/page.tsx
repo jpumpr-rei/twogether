@@ -1,14 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import TransactionsClient from "./TransactionsClient";
+import { parseDateFilter, dateFilterBounds } from "@/components/ui/DateFilterSheet";
 import type { TxRow, CategoryInfo, CardInfo } from "./types";
 
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>;
+  searchParams: Promise<{ month?: string; from?: string; to?: string }>;
 }) {
-  const { month } = await searchParams;
+  const params = await searchParams;
 
   const supabase = await createClient();
   const {
@@ -24,32 +25,30 @@ export default async function TransactionsPage({
 
   const coupleId = profile?.couple_id ?? null;
 
-  // Default to current month
-  const now = new Date();
-  const activeMonth =
-    month ?? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const [year, mon] = activeMonth.split("-").map(Number);
-  const startDate = `${activeMonth}-01`;
-  const endDate = new Date(year, mon, 0).toISOString().split("T")[0]; // last day of month
+  const activeFilter = parseDateFilter(params);
+  const { startDate, endDate } = dateFilterBounds(activeFilter);
 
   let transactions: TxRow[] = [];
   let categories: CategoryInfo[] = [];
   let cards: CardInfo[] = [];
 
   if (coupleId) {
+    let txQuery = supabase
+      .from("transactions")
+      .select(
+        `id, merchant_name, amount, date, is_pending, category_id, card_id,
+         category:categories(id, name, icon, color),
+         card:cards(institution_name, last_four)`
+      )
+      .eq("couple_id", coupleId)
+      .order("date", { ascending: false })
+      .limit(500);
+
+    if (startDate) txQuery = txQuery.gte("date", startDate);
+    if (endDate) txQuery = txQuery.lte("date", endDate);
+
     const [{ data: txData }, { data: catData }, { data: cardData }] = await Promise.all([
-      supabase
-        .from("transactions")
-        .select(
-          `id, merchant_name, amount, date, is_pending, category_id, card_id,
-           category:categories(id, name, icon, color),
-           card:cards(institution_name, last_four)`
-        )
-        .eq("couple_id", coupleId)
-        .gte("date", startDate)
-        .lte("date", endDate)
-        .order("date", { ascending: false })
-        .limit(500),
+      txQuery,
       supabase.from("categories").select("id, name, icon, color").order("name"),
       supabase
         .from("cards")
@@ -61,7 +60,6 @@ export default async function TransactionsPage({
 
     const baseTxs = (txData ?? []) as unknown as Omit<TxRow, "splits">[];
 
-    // Fetch splits separately — if the table doesn't exist yet, degrade gracefully
     let splitsMap = new Map<string, TxRow["splits"]>();
     if (baseTxs.length > 0) {
       const txIds = baseTxs.map((t) => t.id);
@@ -87,7 +85,7 @@ export default async function TransactionsPage({
       transactions={transactions}
       categories={categories}
       cards={cards}
-      activeMonth={activeMonth}
+      activeFilter={activeFilter}
     />
   );
 }

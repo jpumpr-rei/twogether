@@ -3,6 +3,11 @@
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import TransactionSheet from "./TransactionSheet";
+import DateFilterSheet, {
+  dateFilterLabel,
+  dateFilterToSearch,
+  type DateFilter,
+} from "@/components/ui/DateFilterSheet";
 import type { TxRow, CategoryInfo, CardInfo } from "./types";
 
 // ── Sync button ───────────────────────────────────────────────────────────────
@@ -38,61 +43,6 @@ function SyncButton({ onSynced }: { onSynced: () => void }) {
       </button>
       {result && <p className="text-xs text-gray-400 pr-2">{result}</p>}
     </div>
-  );
-}
-
-// ── Date filter sheet ─────────────────────────────────────────────────────────
-function DateFilterSheet({
-  activeMonth,
-  onSelect,
-  onClose,
-}: {
-  activeMonth: string;
-  onSelect: (month: string) => void;
-  onClose: () => void;
-}) {
-  const months = useMemo(() => {
-    const result = [];
-    const now = new Date();
-    for (let i = 0; i < 13; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = d.toLocaleString("default", { month: "long", year: "numeric" });
-      result.push({ value, label });
-    }
-    return result;
-  }, []);
-
-  return (
-    <>
-      <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
-      <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] flex flex-col max-h-[70vh]">
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-4 mb-1 flex-shrink-0" />
-        <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
-          <p className="font-bold text-gray-900">Select month</p>
-        </div>
-        <div className="overflow-y-auto flex-1 divide-y divide-gray-50 pb-safe">
-          {months.map(({ value, label }) => (
-            <button
-              key={value}
-              onClick={() => onSelect(value)}
-              className="w-full px-5 py-4 text-left flex items-center justify-between active:bg-gray-50"
-            >
-              <span
-                className={`text-sm font-medium ${
-                  value === activeMonth ? "text-orange-500" : "text-gray-900"
-                }`}
-              >
-                {label}
-              </span>
-              {value === activeMonth && (
-                <span className="text-orange-500 font-semibold">✓</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -221,12 +171,12 @@ export default function TransactionsClient({
   transactions,
   categories,
   cards,
-  activeMonth,
+  activeFilter,
 }: {
   transactions: TxRow[];
   categories: CategoryInfo[];
   cards: CardInfo[];
-  activeMonth: string;
+  activeFilter: DateFilter;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -240,9 +190,9 @@ export default function TransactionsClient({
     startTransition(() => router.refresh());
   }
 
-  function handleMonthSelect(m: string) {
+  function handleFilterSelect(filter: DateFilter) {
     setShowDateFilter(false);
-    router.push(`/transactions?month=${m}`);
+    router.push(`/transactions${dateFilterToSearch(filter)}`);
   }
 
   function toggleCard(id: string) {
@@ -268,11 +218,8 @@ export default function TransactionsClient({
   }, [transactions, search, selectedCardIds]);
 
   // Chip labels
-  const [year, mon] = activeMonth.split("-").map(Number);
-  const monthLabel = new Date(year, mon - 1, 1).toLocaleString("default", {
-    month: "short",
-    year: "numeric",
-  });
+  const dateLabel = dateFilterLabel(activeFilter);
+  const isDateFiltered = activeFilter.type !== "all";
 
   const accountsLabel =
     selectedCardIds.size === 0
@@ -318,11 +265,25 @@ export default function TransactionsClient({
         {/* Date */}
         <button
           onClick={() => setShowDateFilter(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-white border border-gray-200 shadow-sm active:bg-gray-50 text-gray-700"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border shadow-sm active:opacity-80 ${
+            isDateFiltered
+              ? "bg-orange-500 border-orange-500 text-white"
+              : "bg-white border-gray-200 text-gray-700"
+          }`}
         >
           <span>📅</span>
-          <span>{monthLabel}</span>
-          <span className="text-gray-400 text-[10px]">▾</span>
+          <span>{dateLabel}</span>
+          {isDateFiltered ? (
+            <span
+              role="button"
+              onClick={(e) => { e.stopPropagation(); handleFilterSelect({ type: "all" }); }}
+              className="opacity-80 hover:opacity-100 leading-none"
+            >
+              ×
+            </span>
+          ) : (
+            <span className="text-gray-400 text-[10px]">▾</span>
+          )}
         </button>
 
         {/* Accounts */}
@@ -403,8 +364,8 @@ export default function TransactionsClient({
 
       {showDateFilter && (
         <DateFilterSheet
-          activeMonth={activeMonth}
-          onSelect={handleMonthSelect}
+          activeFilter={activeFilter}
+          onSelect={handleFilterSelect}
           onClose={() => setShowDateFilter(false)}
         />
       )}
