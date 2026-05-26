@@ -1,9 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import BudgetsClient from "./BudgetsClient";
+import { parseBudgetPeriod, budgetPeriodBounds } from "@/lib/budgetPeriod";
 import type { CategoryRow, BudgetRow, BudgetSlot } from "./types";
 
-export default async function BudgetsPage() {
+export default async function BudgetsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; month?: string; year?: string }>;
+}) {
+  const sp = await searchParams;
+  const activePeriod = parseBudgetPeriod(sp);
+  const { startDate, endDate } = budgetPeriodBounds(activePeriod);
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -16,56 +25,49 @@ export default async function BudgetsPage() {
 
   const coupleId: string | null = profile?.couple_id ?? null;
 
-  // Fetch all available categories
-  let categories: CategoryRow[] = [];
-  if (coupleId) {
-    const { data } = await supabase
-      .from("categories")
-      .select("id, name, icon, color")
-      .or(`is_default.eq.true,couple_id.eq.${coupleId}`)
-      .order("name");
-    categories = (data ?? []) as CategoryRow[];
-  } else {
-    const { data } = await supabase
-      .from("categories")
-      .select("id, name, icon, color")
-      .eq("is_default", true)
-      .order("name");
-    categories = (data ?? []) as CategoryRow[];
-  }
+  // Fetch categories and budgets in parallel
+  const [categoriesResult, budgetsResult] = await Promise.all([
+    coupleId
+      ? supabase
+          .from("categories")
+          .select("id, name, icon, color")
+          .or(`is_default.eq.true,couple_id.eq.${coupleId}`)
+          .order("name")
+      : supabase
+          .from("categories")
+          .select("id, name, icon, color")
+          .eq("is_default", true)
+          .order("name"),
+    coupleId
+      ? supabase
+          .from("budgets")
+          .select("id, name, amount, period, category_id")
+          .eq("couple_id", coupleId)
+      : Promise.resolve({ data: [] }),
+  ]);
 
-  // Fetch existing budgets
-  let budgets: BudgetRow[] = [];
-  if (coupleId) {
-    const { data } = await supabase
-      .from("budgets")
-      .select("id, name, amount, period, category_id")
-      .eq("couple_id", coupleId);
-    budgets = (data ?? []) as BudgetRow[];
-  }
+  const categories = (categoriesResult.data ?? []) as CategoryRow[];
+  const budgets = (budgetsResult.data ?? []) as BudgetRow[];
 
-  // Current-month spending per category (direct + split amounts)
-  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString().split("T")[0];
+  // Spending for the selected period
   const spending: Record<string, number> = {};
   if (coupleId) {
     const { data: txs } = await supabase
       .from("transactions")
       .select("id, category_id, amount")
       .eq("couple_id", coupleId)
-      .gte("date", startOfMonth)
+      .gte("date", startDate)
+      .lte("date", endDate)
       .gt("amount", 0);
 
     const txList = (txs ?? []) as { id: string; category_id: string | null; amount: number }[];
 
-    // Direct (non-split) transactions
     for (const tx of txList) {
       if (tx.category_id) {
         spending[tx.category_id] = (spending[tx.category_id] ?? 0) + tx.amount;
       }
     }
 
-    // Split amounts
     const txIds = txList.map((t) => t.id);
     if (txIds.length > 0) {
       const { data: splits } = await supabase
@@ -81,19 +83,19 @@ export default async function BudgetsPage() {
     }
   }
 
-  // Merge: one slot per category
   const budgetMap = new Map(budgets.map((b) => [b.category_id ?? "", b]));
-  const slots: BudgetSlot[] = categories.map((cat) => ({
-    category: cat,
-    budget: budgetMap.get(cat.id) ?? null,
-    spent: spending[cat.id] ?? 0,
-  })).sort((a, b) => {
-    // Budgets with an amount set first (high→low), unset ones at bottom
-    if (a.budget && b.budget) return b.budget.amount - a.budget.amount;
-    if (a.budget) return -1;
-    if (b.budget) return 1;
-    return a.category.name.localeCompare(b.category.name);
-  });
+  const slots: BudgetSlot[] = categories
+    .map((cat) => ({
+      category: cat,
+      budget: budgetMap.get(cat.id) ?? null,
+      spent: spending[cat.id] ?? 0,
+    }))
+    .sort((a, b) => {
+      if (a.budget && b.budget) return b.budget.amount - a.budget.amount;
+      if (a.budget) return -1;
+      if (b.budget) return 1;
+      return a.category.name.localeCompare(b.category.name);
+    });
 
-  return <BudgetsClient slots={slots} />;
+  return <BudgetsClient slots={slots} activePeriod={activePeriod} />;
 }
