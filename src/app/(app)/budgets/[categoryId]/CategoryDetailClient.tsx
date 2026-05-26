@@ -3,23 +3,28 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import EditSheet from "../EditSheet";
+import RecategorizeSheet from "./RecategorizeSheet";
 import type { CategoryRow, BudgetRow } from "../types";
+import type { CategoryInfo } from "../../transactions/types";
 import type { TxRow } from "./page";
 
 export default function CategoryDetailClient({
   category,
   budget,
   transactions,
+  allCategories,
   spent,
 }: {
   category: CategoryRow;
   budget: BudgetRow | null;
   transactions: TxRow[];
+  allCategories: CategoryInfo[];
   spent: number;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [showEdit, setShowEdit] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<TxRow | null>(null);
 
   const iconBg = category.color ? category.color + "22" : "#f3f4f6";
   const pct = budget ? Math.min(100, (spent / budget.amount) * 100) : 0;
@@ -108,9 +113,13 @@ export default function CategoryDetailClient({
               <p className="text-gray-400 text-sm">No transactions this month.</p>
             </div>
           ) : (
-            <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50">
+            <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50 overflow-hidden">
               {transactions.map((tx) => (
-                <div key={tx.id} className="flex items-center gap-3 px-4 py-3">
+                <button
+                  key={tx.id}
+                  onClick={() => setSelectedTx(tx)}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left active:bg-gray-50 transition-colors"
+                >
                   <div
                     className="w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0"
                     style={{ backgroundColor: iconBg }}
@@ -129,7 +138,8 @@ export default function CategoryDetailClient({
                   <span className="font-semibold text-gray-800 text-sm tabular-nums">
                     ${tx.amount.toFixed(2)}
                   </span>
-                </div>
+                  <span className="text-gray-300 text-xs ml-1">›</span>
+                </button>
               ))}
             </div>
           )}
@@ -141,6 +151,15 @@ export default function CategoryDetailClient({
           slot={slot}
           onClose={() => setShowEdit(false)}
           onSaved={() => { setShowEdit(false); refresh(); }}
+        />
+      )}
+
+      {selectedTx && (
+        <RecategorizeSheet
+          tx={selectedTx}
+          categories={allCategories}
+          onClose={() => setSelectedTx(null)}
+          onSaved={() => { setSelectedTx(null); refresh(); }}
         />
       )}
     </div>

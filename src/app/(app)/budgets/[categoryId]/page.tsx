@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import CategoryDetailClient from "./CategoryDetailClient";
 import type { CategoryRow, BudgetRow } from "../types";
+import type { CategoryInfo } from "../../transactions/types";
 
 export type TxRow = {
   id: string;
@@ -9,6 +10,7 @@ export type TxRow = {
   amount: number;
   date: string;
   is_pending: boolean;
+  category_id: string | null;
 };
 
 export default async function CategoryDetailPage({
@@ -56,15 +58,20 @@ export default async function CategoryDetailPage({
     .toISOString().split("T")[0];
 
   let transactions: TxRow[] = [];
+  let allCategories: CategoryInfo[] = [];
   if (coupleId) {
-    const { data } = await supabase
-      .from("transactions")
-      .select("id, merchant_name, amount, date, is_pending")
-      .eq("couple_id", coupleId)
-      .eq("category_id", categoryId)
-      .gte("date", startOfMonth)
-      .order("date", { ascending: false });
-    transactions = (data ?? []) as TxRow[];
+    const [{ data: txData }, { data: catData }] = await Promise.all([
+      supabase
+        .from("transactions")
+        .select("id, merchant_name, amount, date, is_pending, category_id")
+        .eq("couple_id", coupleId)
+        .eq("category_id", categoryId)
+        .gte("date", startOfMonth)
+        .order("date", { ascending: false }),
+      supabase.from("categories").select("id, name, icon, color").order("name"),
+    ]);
+    transactions = (txData ?? []) as TxRow[];
+    allCategories = (catData ?? []) as CategoryInfo[];
   }
 
   // Direct spending + any split amounts for this category
@@ -96,6 +103,7 @@ export default async function CategoryDetailPage({
       category={category}
       budget={budget}
       transactions={transactions}
+      allCategories={allCategories}
       spent={spent}
     />
   );
