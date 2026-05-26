@@ -23,7 +23,8 @@ export async function joinHousehold(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Not logged in" };
 
-  const { data, error } = await supabase.rpc("join_couple_by_code", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("join_couple_by_code", {
     p_invite_code: inviteCode.trim().toUpperCase(),
   });
 
