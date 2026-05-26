@@ -73,7 +73,12 @@ export async function sendInviteEmail(
   if (!couple?.invite_code) return { error: "Could not find your invite code." };
 
   const senderName = profile.display_name?.split(" ")[0] ?? "Your partner";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  // NEXT_PUBLIC_APP_URL is the canonical production URL (set in Vercel env vars).
+  // VERCEL_URL is auto-set by Vercel to the deployment hostname (no protocol).
+  // Fall back to localhost only in local dev.
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
   const redirectTo = `${appUrl}/auth/callback?invite=${couple.invite_code}`;
 
   // Use Supabase admin to send the invite email.
