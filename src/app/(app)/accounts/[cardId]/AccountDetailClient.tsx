@@ -34,6 +34,7 @@ export default function AccountDetailClient({
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [showEditName, setShowEditName] = useState(false);
   const [cardName, setCardName] = useState(card.account_name);
+  const [cardIsPrivate, setCardIsPrivate] = useState(card.is_private);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
 
@@ -104,9 +105,16 @@ export default function AccountDetailClient({
             💳
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="font-bold text-gray-900 text-base leading-tight truncate">
-              {cardName}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-gray-900 text-base leading-tight truncate">
+                {cardName}
+              </h1>
+              {cardIsPrivate && (
+                <span className="text-[10px] font-semibold bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  Private
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-400 capitalize">
               {card.institution_name} · {card.account_type}
               {card.last_four && ` ·· ${card.last_four}`}
@@ -262,9 +270,9 @@ export default function AccountDetailClient({
 
       {showEditName && (
         <EditAccountNameSheet
-          card={{ id: cardId, institution_name: card.institution_name, account_name: cardName, last_four: card.last_four }}
+          card={{ id: cardId, institution_name: card.institution_name, account_name: cardName, last_four: card.last_four, is_private: cardIsPrivate }}
           onClose={() => setShowEditName(false)}
-          onSaved={(name) => { setCardName(name); setShowEditName(false); refresh(); }}
+          onSaved={(name, isPrivate) => { setCardName(name); setCardIsPrivate(isPrivate); setShowEditName(false); refresh(); }}
         />
       )}
 

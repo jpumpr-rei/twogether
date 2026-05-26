@@ -14,6 +14,7 @@ export type CardDisplay = {
   last_four: string | null;
   account_type: string;
   balance_current: number | null;
+  is_private: boolean;
 };
 
 export default function AccountsClient({ initialCards }: { initialCards: CardDisplay[] }) {
@@ -28,9 +29,9 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
     startTransition(() => router.refresh());
   }
 
-  function handleNameSaved(cardId: string, newName: string) {
+  function handleNameSaved(cardId: string, newName: string, isPrivate: boolean) {
     setCards((prev) =>
-      prev.map((c) => (c.id === cardId ? { ...c, account_name: newName } : c))
+      prev.map((c) => (c.id === cardId ? { ...c, account_name: newName, is_private: isPrivate } : c))
     );
     setEditingCard(null);
     refresh();
@@ -121,9 +122,16 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
                           💳
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-900 text-sm truncate">
-                            {card.account_name}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium text-gray-900 text-sm truncate">
+                              {card.account_name}
+                            </p>
+                            {card.is_private && (
+                              <span className="text-[10px] font-semibold bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                                Private
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-400 capitalize">
                             {card.account_type}
                             {card.last_four && ` ·· ${card.last_four}`}
@@ -181,7 +189,7 @@ export default function AccountsClient({ initialCards }: { initialCards: CardDis
         <EditAccountNameSheet
           card={editingCard}
           onClose={() => setEditingCard(null)}
-          onSaved={(name) => handleNameSaved(editingCard.id, name)}
+          onSaved={(name, isPrivate) => handleNameSaved(editingCard.id, name, isPrivate)}
         />
       )}
     </>

@@ -9,6 +9,7 @@ type CardRow = {
   account_name: string;
   last_four: string | null;
   account_type: string;
+  is_private: boolean;
   plaid_item_id: string | null;
   plaid_account_id: string | null;
   plaid_access_token: string | null;
@@ -35,7 +36,7 @@ export default async function AccountsPage() {
     const { data } = await supabase
       .from("cards")
       .select(
-        "id, institution_name, account_name, last_four, account_type, plaid_item_id, plaid_account_id, plaid_access_token"
+        "id, institution_name, account_name, last_four, account_type, is_private, plaid_item_id, plaid_account_id, plaid_access_token"
       )
       .eq("couple_id", coupleId)
       .eq("is_active", true)
@@ -67,6 +68,7 @@ export default async function AccountsPage() {
       account_name: card.account_name,
       last_four: card.last_four,
       account_type: card.account_type,
+      is_private: card.is_private,
       balance_current: card.plaid_account_id
         ? (balanceMap.get(card.plaid_account_id) ?? null)
         : null,

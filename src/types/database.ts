@@ -59,6 +59,7 @@ export interface Database {
           last_four: string | null;
           account_type: string;
           is_active: boolean;
+          is_private: boolean;
           created_at: string;
         };
         Insert: {
@@ -73,6 +74,7 @@ export interface Database {
           last_four?: string | null;
           account_type?: string;
           is_active?: boolean;
+          is_private?: boolean;
         };
         Update: {
           couple_id?: string;
@@ -85,6 +87,7 @@ export interface Database {
           last_four?: string | null;
           account_type?: string;
           is_active?: boolean;
+          is_private?: boolean;
         };
         Relationships: [];
       };

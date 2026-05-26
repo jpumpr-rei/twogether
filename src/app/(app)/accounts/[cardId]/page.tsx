@@ -10,6 +10,7 @@ export type AccountCardRow = {
   account_name: string;
   last_four: string | null;
   account_type: string;
+  is_private: boolean;
 };
 
 export default async function AccountDetailPage({
@@ -30,7 +31,7 @@ export default async function AccountDetailPage({
 
   const { data: cardData } = await supabase
     .from("cards")
-    .select("id, institution_name, account_name, last_four, account_type")
+    .select("id, institution_name, account_name, last_four, account_type, is_private")
     .eq("id", cardId)
     .single();
 

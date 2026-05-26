@@ -4,14 +4,17 @@ import { createClient } from "@/lib/supabase/server";
 import { plaidClient } from "@/lib/plaid/client";
 import { revalidatePath } from "next/cache";
 
-export async function updateAccountName(cardId: string, name: string) {
+export async function updateAccountSettings(
+  cardId: string,
+  { name, isPrivate }: { name: string; isPrivate: boolean }
+) {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Name cannot be empty");
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("cards")
-    .update({ account_name: trimmed })
+    .update({ account_name: trimmed, is_private: isPrivate })
     .eq("id", cardId);
   if (error) throw error;
 
