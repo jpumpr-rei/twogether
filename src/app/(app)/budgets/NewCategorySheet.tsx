@@ -105,12 +105,12 @@ export default function NewCategorySheet({
           <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
             Icon
           </label>
-          <div className="grid grid-cols-6 gap-2">
+          <div className="flex flex-wrap gap-2">
             {PRESET_ICONS.map((emoji) => (
               <button
                 key={emoji}
                 onClick={() => setIcon(icon === emoji ? null : emoji)}
-                className={`w-full aspect-square rounded-xl text-2xl flex items-center justify-center transition-colors ${
+                className={`w-11 h-11 rounded-xl text-xl flex items-center justify-center flex-shrink-0 transition-colors ${
                   icon === emoji
                     ? "bg-orange-100 ring-2 ring-orange-400"
                     : "bg-gray-50 hover:bg-gray-100 active:bg-gray-200"
