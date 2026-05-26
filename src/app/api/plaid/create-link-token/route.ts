@@ -8,10 +8,12 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Use explicit app URL, or fall back to Vercel's auto-set hostname
-  const appUrl =
+  // Use explicit app URL, or fall back to Vercel's auto-set hostname.
+  // Strip any trailing slash so redirect_uri never gets a double slash.
+  const rawUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+  const appUrl = rawUrl ? rawUrl.replace(/\/$/, "") : null;
 
   const response = await plaidClient.linkTokenCreate({
     user: { client_user_id: user.id },
