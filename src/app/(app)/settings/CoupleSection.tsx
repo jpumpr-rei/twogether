@@ -177,14 +177,19 @@ function InviteCodeView({
     setSending(true);
     setSendError(null);
     setSent(false);
-    const res = await sendInviteEmail(email.trim());
-    setSending(false);
-    if (res.error) {
-      setSendError(res.error);
-    } else {
-      setSent(true);
-      setEmail("");
-      setTimeout(() => setSent(false), 5000);
+    try {
+      const res = await sendInviteEmail(email.trim());
+      if (res.error) {
+        setSendError(res.error);
+      } else {
+        setSent(true);
+        setEmail("");
+        setTimeout(() => setSent(false), 5000);
+      }
+    } catch {
+      setSendError("Something went wrong. Please try again.");
+    } finally {
+      setSending(false);
     }
   }
 
