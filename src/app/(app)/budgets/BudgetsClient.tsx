@@ -13,7 +13,7 @@ import {
 } from "@/lib/budgetPeriod";
 import type { BudgetSlot } from "./types";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const START_YEAR = 2023;
 
 export default function BudgetsClient({
@@ -216,14 +216,14 @@ function PeriodPickerSheet({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — above tab bar (z-50) */}
       <div
-        className="fixed inset-0 bg-black/30 z-40"
+        className="fixed inset-0 bg-black/40 z-[60]"
         onClick={onClose}
       />
 
-      {/* Sheet */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-xl pb-safe">
+      {/* Sheet — above backdrop */}
+      <div className="fixed bottom-0 left-0 right-0 z-[70] bg-white rounded-t-3xl shadow-xl pb-safe">
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-gray-200" />
@@ -233,7 +233,7 @@ function PeriodPickerSheet({
           {viewType === "month" ? (
             <>
               {/* Year navigation row inside picker */}
-              <div className="flex items-center justify-between py-3 mb-2">
+              <div className="flex items-center justify-between py-3 border-b border-gray-100 mb-2">
                 <button
                   onClick={() => onPickerYearChange(pickerYear - 1)}
                   disabled={pickerYear <= startYear}
@@ -253,8 +253,8 @@ function PeriodPickerSheet({
                 </button>
               </div>
 
-              {/* Month grid — 3 columns × 4 rows */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* Month list */}
+              <div className="space-y-1 max-h-72 overflow-y-auto">
                 {MONTHS.map((label, idx) => {
                   const monthNum = String(idx + 1).padStart(2, "0");
                   const monthStr = `${pickerYear}-${monthNum}`;
@@ -266,11 +266,11 @@ function PeriodPickerSheet({
                       key={monthStr}
                       onClick={() => !isFuture && onSelect({ type: "month", month: monthStr })}
                       disabled={isFuture}
-                      className={`py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                      className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
                         isSelected
                           ? "bg-orange-500 text-white"
                           : isFuture
-                          ? "text-gray-300"
+                          ? "text-gray-300 cursor-default"
                           : "text-gray-700 hover:bg-gray-100 active:bg-gray-200"
                       }`}
                     >
@@ -282,9 +282,9 @@ function PeriodPickerSheet({
             </>
           ) : (
             <>
-              <p className="text-sm font-bold text-gray-800 py-3 mb-1">Select year</p>
+              <p className="text-sm font-bold text-gray-800 py-3 border-b border-gray-100 mb-2">Select year</p>
               {/* Year list */}
-              <div className="space-y-1 max-h-64 overflow-y-auto">
+              <div className="space-y-1 max-h-72 overflow-y-auto">
                 {years.map((y) => {
                   const isSelected = activeYear === y;
                   return (
