@@ -13,6 +13,9 @@ import {
 } from "@/lib/budgetPeriod";
 import type { BudgetSlot } from "./types";
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const START_YEAR = 2023;
+
 export default function BudgetsClient({
   slots,
   activePeriod,
@@ -23,6 +26,13 @@ export default function BudgetsClient({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const [editingSlot, setEditingSlot] = useState<BudgetSlot | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+  // Year shown inside the monthly picker sheet
+  const [pickerYear, setPickerYear] = useState<number>(
+    activePeriod.type === "month"
+      ? parseInt(activePeriod.month.split("-")[0], 10)
+      : activePeriod.year
+  );
 
   const viewType = activePeriod.type;
   const periodLabel = budgetPeriodLabel(activePeriod);
@@ -43,6 +53,7 @@ export default function BudgetsClient({
   }, 0);
 
   function navigate(period: BudgetPeriod) {
+    setShowPicker(false);
     startTransition(() => router.push("/budgets" + budgetPeriodToSearch(period)));
   }
 
@@ -59,6 +70,16 @@ export default function BudgetsClient({
       const year = activePeriod.type === "year" ? activePeriod.year : now.getFullYear();
       navigate({ type: "month", month: `${year}-01` });
     }
+  }
+
+  function openPicker() {
+    // Reset picker year to match current active period
+    setPickerYear(
+      activePeriod.type === "month"
+        ? parseInt(activePeriod.month.split("-")[0], 10)
+        : activePeriod.year
+    );
+    setShowPicker(true);
   }
 
   function refresh() {
@@ -102,7 +123,14 @@ export default function BudgetsClient({
         >
           ‹
         </button>
-        <p className="text-sm font-semibold text-gray-600">{periodLabel}</p>
+        <button
+          onClick={openPicker}
+          className="flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+          aria-label="Open period picker"
+        >
+          {periodLabel}
+          <span className="text-gray-400 text-xs">▾</span>
+        </button>
         <button
           onClick={() => !isAtOrBeyondNow && navigate(nextPeriod(activePeriod))}
           disabled={isAtOrBeyondNow}
@@ -138,7 +166,147 @@ export default function BudgetsClient({
           onSaved={() => { setEditingSlot(null); refresh(); }}
         />
       )}
+
+      {showPicker && (
+        <PeriodPickerSheet
+          viewType={viewType}
+          activePeriod={activePeriod}
+          pickerYear={pickerYear}
+          currentMonth={currentMonth}
+          currentYear={currentYear}
+          startYear={START_YEAR}
+          onPickerYearChange={setPickerYear}
+          onSelect={navigate}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Period Picker Sheet ───────────────────────────────────────────────────────
+
+function PeriodPickerSheet({
+  viewType,
+  activePeriod,
+  pickerYear,
+  currentMonth,
+  currentYear,
+  startYear,
+  onPickerYearChange,
+  onSelect,
+  onClose,
+}: {
+  viewType: "month" | "year";
+  activePeriod: BudgetPeriod;
+  pickerYear: number;
+  currentMonth: string;
+  currentYear: number;
+  startYear: number;
+  onPickerYearChange: (y: number) => void;
+  onSelect: (period: BudgetPeriod) => void;
+  onClose: () => void;
+}) {
+  const activeMonthStr = activePeriod.type === "month" ? activePeriod.month : null;
+  const activeYear = activePeriod.type === "year" ? activePeriod.year : null;
+
+  // All years from startYear to currentYear, newest first
+  const years: number[] = [];
+  for (let y = currentYear; y >= startYear; y--) years.push(y);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-black/30 z-40"
+        onClick={onClose}
+      />
+
+      {/* Sheet */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-3xl shadow-xl pb-safe">
+        {/* Handle */}
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-gray-200" />
+        </div>
+
+        <div className="px-4 pb-6">
+          {viewType === "month" ? (
+            <>
+              {/* Year navigation row inside picker */}
+              <div className="flex items-center justify-between py-3 mb-2">
+                <button
+                  onClick={() => onPickerYearChange(pickerYear - 1)}
+                  disabled={pickerYear <= startYear}
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-25 text-lg font-medium"
+                  aria-label="Previous year"
+                >
+                  ‹
+                </button>
+                <span className="text-sm font-bold text-gray-800">{pickerYear}</span>
+                <button
+                  onClick={() => onPickerYearChange(pickerYear + 1)}
+                  disabled={pickerYear >= currentYear}
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-25 text-lg font-medium"
+                  aria-label="Next year"
+                >
+                  ›
+                </button>
+              </div>
+
+              {/* Month grid — 3 columns × 4 rows */}
+              <div className="grid grid-cols-3 gap-2">
+                {MONTHS.map((label, idx) => {
+                  const monthNum = String(idx + 1).padStart(2, "0");
+                  const monthStr = `${pickerYear}-${monthNum}`;
+                  const isFuture = monthStr > currentMonth;
+                  const isSelected = activeMonthStr === monthStr;
+
+                  return (
+                    <button
+                      key={monthStr}
+                      onClick={() => !isFuture && onSelect({ type: "month", month: monthStr })}
+                      disabled={isFuture}
+                      className={`py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                        isSelected
+                          ? "bg-orange-500 text-white"
+                          : isFuture
+                          ? "text-gray-300"
+                          : "text-gray-700 hover:bg-gray-100 active:bg-gray-200"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-bold text-gray-800 py-3 mb-1">Select year</p>
+              {/* Year list */}
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {years.map((y) => {
+                  const isSelected = activeYear === y;
+                  return (
+                    <button
+                      key={y}
+                      onClick={() => onSelect({ type: "year", year: y })}
+                      className={`w-full text-left px-4 py-3 rounded-xl text-sm font-semibold transition-colors ${
+                        isSelected
+                          ? "bg-orange-500 text-white"
+                          : "text-gray-700 hover:bg-gray-100 active:bg-gray-200"
+                      }`}
+                    >
+                      {y}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
   );
 }
 
