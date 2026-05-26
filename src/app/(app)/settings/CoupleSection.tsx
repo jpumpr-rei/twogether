@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createHousehold, joinHousehold } from "./coupleActions";
+import { createHousehold, joinHousehold, sendInviteEmail } from "./coupleActions";
 
 type Partner = { display_name: string | null; email: string } | null;
 type Couple = { name: string | null; invite_code: string } | null;
@@ -158,8 +158,9 @@ function InviteCodeView({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-
-  const inviteMessage = `Hey! I'm using Twogether to manage our finances together. Join my household using invite code: ${inviteCode}\n\nOpen the app at ${typeof window !== "undefined" ? window.location.origin : ""} and enter the code in Settings → Household.`;
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
   async function handleCopy() {
     try {
@@ -171,27 +172,20 @@ function InviteCodeView({
     }
   }
 
-  async function handleShare() {
-    if (typeof navigator !== "undefined" && navigator.share) {
-      try {
-        await navigator.share({
-          title: "Join my household on Twogether",
-          text: inviteMessage,
-        });
-        return;
-      } catch {
-        // User cancelled or share failed — fall through to mailto
-      }
-    }
-    // Fallback: open mail app
-    const mailto = `mailto:?subject=${encodeURIComponent("Join my household on Twogether")}&body=${encodeURIComponent(inviteMessage)}`;
-    window.open(mailto, "_self");
-  }
-
-  function handleEmailInvite() {
+  async function handleSendInvite() {
     if (!email.trim()) return;
-    const mailto = `mailto:${encodeURIComponent(email.trim())}?subject=${encodeURIComponent("Join my household on Twogether")}&body=${encodeURIComponent(inviteMessage)}`;
-    window.open(mailto, "_self");
+    setSending(true);
+    setSendError(null);
+    setSent(false);
+    const res = await sendInviteEmail(email.trim());
+    setSending(false);
+    if (res.error) {
+      setSendError(res.error);
+    } else {
+      setSent(true);
+      setEmail("");
+      setTimeout(() => setSent(false), 5000);
+    }
   }
 
   async function handleJoin() {
@@ -227,9 +221,6 @@ function InviteCodeView({
             {copied ? "✓ Copied" : "Copy"}
           </button>
         </div>
-        <p className="text-xs text-gray-400 text-center mt-2">
-          Share this code with your partner — they enter it in their Settings to join.
-        </p>
       </div>
 
       {/* Email invite */}
@@ -241,31 +232,25 @@ function InviteCodeView({
           <input
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); setSendError(null); setSent(false); }}
             placeholder="partner@email.com"
             className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50"
           />
           <button
-            onClick={handleEmailInvite}
-            disabled={!email.trim()}
-            className="px-4 py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 active:bg-orange-600 disabled:opacity-40 flex-shrink-0"
+            onClick={handleSendInvite}
+            disabled={sending || !email.trim()}
+            className="px-4 py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 active:bg-orange-600 disabled:opacity-40 flex-shrink-0 min-w-[64px]"
           >
-            Send
+            {sending ? "…" : sent ? "✓ Sent" : "Send"}
           </button>
         </div>
-        <p className="text-xs text-gray-400">
-          Opens your mail app with a pre-written invite.
-        </p>
+        {sent && (
+          <p className="text-xs text-green-600 font-medium">
+            Invite sent! They&apos;ll get an email with a link to create their account.
+          </p>
+        )}
+        {sendError && <p className="text-xs text-red-500">{sendError}</p>}
       </div>
-
-      {/* Share button */}
-      <button
-        onClick={handleShare}
-        className="w-full flex items-center justify-center gap-2 border border-gray-200 text-gray-700 text-sm font-semibold rounded-xl py-2.5 hover:bg-gray-50 active:bg-gray-50"
-      >
-        <span>↗</span>
-        <span>Share invite</span>
-      </button>
 
       {/* Divider */}
       <div className="flex items-center gap-3">
