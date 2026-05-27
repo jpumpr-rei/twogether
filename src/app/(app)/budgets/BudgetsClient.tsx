@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import NewCategorySheet from "./NewCategorySheet";
 import {
@@ -9,12 +9,21 @@ import {
   normalizedBudgetAmount,
   prevPeriod,
   nextPeriod,
+  rangeDays,
   type BudgetPeriod,
 } from "@/lib/budgetPeriod";
 import type { BudgetSlot } from "./types";
 
-const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 const START_YEAR = 2023;
+const LS_KEY = "twogether_budget_range";
+
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default function BudgetsClient({
   slots,
@@ -27,29 +36,57 @@ export default function BudgetsClient({
   const [, startTransition] = useTransition();
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
-  // Year shown inside the monthly picker sheet
   const [pickerYear, setPickerYear] = useState<number>(
     activePeriod.type === "month"
       ? parseInt(activePeriod.month.split("-")[0], 10)
-      : activePeriod.year
+      : activePeriod.type === "year"
+      ? activePeriod.year
+      : new Date().getFullYear()
   );
 
-  const viewType = activePeriod.type;
-  const periodLabel = budgetPeriodLabel(activePeriod);
-  const suffix = viewType === "year" ? "/ yr" : "/ mo";
-
-  // Check if this period is in the future (disable next arrow)
+  // Compute defaults once (at mount time)
   const now = new Date();
+  const defaultTo   = fmtDate(now);
+  const defaultFrom = fmtDate(new Date(now.getTime() - 29 * 86_400_000));
+  const todayStr    = defaultTo;
+
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const currentYear = now.getFullYear();
+  const currentYear  = now.getFullYear();
+
+  // Controlled date range inputs (driven by URL when in range view)
+  const [rangeFrom, setRangeFrom] = useState<string>(
+    activePeriod.type === "range" ? activePeriod.from : defaultFrom
+  );
+  const [rangeTo, setRangeTo] = useState<string>(
+    activePeriod.type === "range" ? activePeriod.to : defaultTo
+  );
+
+  // Keep inputs in sync when URL changes (e.g. browser back/forward)
+  useEffect(() => {
+    if (activePeriod.type === "range") {
+      setRangeFrom(activePeriod.from);
+      setRangeTo(activePeriod.to);
+    }
+  }, [activePeriod]);
+
+  const viewType = activePeriod.type; // "month" | "year" | "range"
+  const suffix   = viewType === "year" ? "/ yr" : viewType === "range" ? "" : "/ mo";
+
   const isAtOrBeyondNow =
-    viewType === "month"
+    viewType === "month" && activePeriod.type === "month"
       ? activePeriod.month >= currentMonth
-      : activePeriod.year >= currentYear;
+      : viewType === "year" && activePeriod.type === "year"
+      ? activePeriod.year >= currentYear
+      : false;
+
+  const rangeCount =
+    activePeriod.type === "range"
+      ? rangeDays(activePeriod.from, activePeriod.to)
+      : undefined;
 
   const totalBudget = slots.reduce((sum, sl) => {
     if (!sl.budget) return sum;
-    return sum + normalizedBudgetAmount(sl.budget.amount, sl.budget.period, viewType);
+    return sum + normalizedBudgetAmount(sl.budget.amount, sl.budget.period, viewType, rangeCount);
   }, 0);
 
   function navigate(period: BudgetPeriod) {
@@ -57,27 +94,58 @@ export default function BudgetsClient({
     startTransition(() => router.push("/budgets" + budgetPeriodToSearch(period)));
   }
 
-  function switchView(type: "month" | "year") {
+  function switchView(type: "month" | "year" | "range") {
     if (type === viewType) return;
+    if (type === "range") {
+      // Read saved range from localStorage or fall back to last 30 days
+      let from = defaultFrom;
+      let to   = defaultTo;
+      try {
+        const stored = JSON.parse(localStorage.getItem(LS_KEY) ?? "null");
+        if (stored?.from && /^\d{4}-\d{2}-\d{2}$/.test(stored.from)) from = stored.from;
+        if (stored?.to   && /^\d{4}-\d{2}-\d{2}$/.test(stored.to))   to   = stored.to;
+      } catch { /* ignore */ }
+      navigate({ type: "range", from, to });
+      return;
+    }
     if (type === "year") {
       const year =
         activePeriod.type === "month"
           ? parseInt(activePeriod.month.split("-")[0], 10)
-          : activePeriod.year;
+          : activePeriod.type === "year"
+          ? activePeriod.year
+          : now.getFullYear();
       navigate({ type: "year", year });
     } else {
-      // Switch to the first month of the current year period
       const year = activePeriod.type === "year" ? activePeriod.year : now.getFullYear();
       navigate({ type: "month", month: `${year}-01` });
     }
   }
 
+  function handleRangeChange(field: "from" | "to", value: string) {
+    const newFrom = field === "from" ? value : rangeFrom;
+    const newTo   = field === "to"   ? value : rangeTo;
+    if (field === "from") setRangeFrom(value);
+    else setRangeTo(value);
+
+    // Navigate + persist once both dates are valid and ordered
+    if (
+      /^\d{4}-\d{2}-\d{2}$/.test(newFrom) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(newTo) &&
+      newFrom <= newTo
+    ) {
+      try { localStorage.setItem(LS_KEY, JSON.stringify({ from: newFrom, to: newTo })); } catch { /* ignore */ }
+      navigate({ type: "range", from: newFrom, to: newTo });
+    }
+  }
+
   function openPicker() {
-    // Reset picker year to match current active period
     setPickerYear(
       activePeriod.type === "month"
         ? parseInt(activePeriod.month.split("-")[0], 10)
-        : activePeriod.year
+        : activePeriod.type === "year"
+        ? activePeriod.year
+        : now.getFullYear()
     );
     setShowPicker(true);
   }
@@ -121,39 +189,75 @@ export default function BudgetsClient({
         >
           Yearly
         </button>
+        <button
+          onClick={() => switchView("range")}
+          className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+            viewType === "range"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Date Range
+        </button>
       </div>
 
-      {/* Period navigation */}
-      <div className="flex items-center justify-between mb-1">
-        <button
-          onClick={() => navigate(prevPeriod(activePeriod))}
-          className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 active:bg-gray-200 text-lg font-medium"
-          aria-label="Previous period"
-        >
-          ‹
-        </button>
-        <button
-          onClick={openPicker}
-          className="flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
-          aria-label="Open period picker"
-        >
-          {periodLabel}
-          <span className="text-gray-400 text-xs">▾</span>
-        </button>
-        <button
-          onClick={() => !isAtOrBeyondNow && navigate(nextPeriod(activePeriod))}
-          disabled={isAtOrBeyondNow}
-          className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-25 text-lg font-medium"
-          aria-label="Next period"
-        >
-          ›
-        </button>
-      </div>
+      {/* Range date pickers OR month/year navigation */}
+      {viewType === "range" ? (
+        <div className="flex items-end gap-3 mb-4">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-400 mb-1">From</label>
+            <input
+              type="date"
+              value={rangeFrom}
+              max={rangeTo}
+              onChange={(e) => handleRangeChange("from", e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-400 mb-1">To</label>
+            <input
+              type="date"
+              value={rangeTo}
+              min={rangeFrom}
+              max={todayStr}
+              onChange={(e) => handleRangeChange("to", e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between mb-1">
+          <button
+            onClick={() => navigate(prevPeriod(activePeriod))}
+            className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 active:bg-gray-200 text-lg font-medium"
+            aria-label="Previous period"
+          >
+            ‹
+          </button>
+          <button
+            onClick={openPicker}
+            className="flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            aria-label="Open period picker"
+          >
+            {budgetPeriodLabel(activePeriod)}
+            <span className="text-gray-400 text-xs">▾</span>
+          </button>
+          <button
+            onClick={() => !isAtOrBeyondNow && navigate(nextPeriod(activePeriod))}
+            disabled={isAtOrBeyondNow}
+            className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 active:bg-gray-200 disabled:opacity-25 text-lg font-medium"
+            aria-label="Next period"
+          >
+            ›
+          </button>
+        </div>
+      )}
 
       {/* Total budget */}
       <p className="text-3xl font-bold text-gray-900 mb-6 text-center">
         ${totalBudget.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-        <span className="text-base font-normal text-gray-400"> {suffix}</span>
+        {suffix && <span className="text-base font-normal text-gray-400"> {suffix}</span>}
       </p>
 
       <div className="space-y-2">
@@ -162,10 +266,10 @@ export default function BudgetsClient({
             key={slot.category.id}
             slot={slot}
             viewType={viewType}
+            rangeCount={rangeCount}
             onNavigate={() => router.push(`/budgets/${slot.category.id}`)}
           />
         ))}
-
       </div>
 
       {showNewCategory && (
@@ -175,9 +279,9 @@ export default function BudgetsClient({
         />
       )}
 
-      {showPicker && (
+      {showPicker && viewType !== "range" && (
         <PeriodPickerSheet
-          viewType={viewType}
+          viewType={viewType as "month" | "year"}
           activePeriod={activePeriod}
           pickerYear={pickerYear}
           currentMonth={currentMonth}
@@ -216,23 +320,18 @@ function PeriodPickerSheet({
   onClose: () => void;
 }) {
   const activeMonthStr = activePeriod.type === "month" ? activePeriod.month : null;
-  const activeYear = activePeriod.type === "year" ? activePeriod.year : null;
+  const activeYear     = activePeriod.type === "year"  ? activePeriod.year  : null;
 
-  // All years from startYear to currentYear, newest first
   const years: number[] = [];
   for (let y = currentYear; y >= startYear; y--) years.push(y);
 
   return (
     <>
       {/* Backdrop — above tab bar (z-50) */}
-      <div
-        className="fixed inset-0 bg-black/40 z-[60]"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
 
-      {/* Sheet — above backdrop */}
+      {/* Sheet */}
       <div className="fixed bottom-0 left-0 right-0 z-[70] bg-white rounded-t-3xl shadow-xl pb-safe">
-        {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-gray-200" />
         </div>
@@ -240,7 +339,7 @@ function PeriodPickerSheet({
         <div className="px-4 pb-6">
           {viewType === "month" ? (
             <>
-              {/* Year navigation row inside picker */}
+              {/* Year navigation row */}
               <div className="flex items-center justify-between py-3 border-b border-gray-100 mb-2">
                 <button
                   onClick={() => onPickerYearChange(pickerYear - 1)}
@@ -268,7 +367,6 @@ function PeriodPickerSheet({
                   const monthStr = `${pickerYear}-${monthNum}`;
                   const isFuture = monthStr > currentMonth;
                   const isSelected = activeMonthStr === monthStr;
-
                   return (
                     <button
                       key={monthStr}
@@ -290,7 +388,9 @@ function PeriodPickerSheet({
             </>
           ) : (
             <>
-              <p className="text-sm font-bold text-gray-800 py-3 border-b border-gray-100 mb-2">Select year</p>
+              <p className="text-sm font-bold text-gray-800 py-3 border-b border-gray-100 mb-2">
+                Select year
+              </p>
               {/* Year list */}
               <div className="space-y-1 max-h-72 overflow-y-auto">
                 {years.map((y) => {
@@ -318,28 +418,30 @@ function PeriodPickerSheet({
   );
 }
 
+// ── Budget Row ────────────────────────────────────────────────────────────────
+
 function BudgetRow({
   slot,
   viewType,
+  rangeCount,
   onNavigate,
 }: {
   slot: BudgetSlot;
-  viewType: "month" | "year";
+  viewType: "month" | "year" | "range";
+  rangeCount?: number;
   onNavigate: () => void;
 }) {
   const { category, budget, spent } = slot;
   const hasBudget = budget != null;
 
   const displayAmount = hasBudget
-    ? normalizedBudgetAmount(budget.amount, budget.period, viewType)
+    ? normalizedBudgetAmount(budget.amount, budget.period, viewType, rangeCount)
     : 0;
 
-  const pct = hasBudget && displayAmount > 0
-    ? Math.min(100, (spent / displayAmount) * 100)
-    : 0;
-  const isOver = hasBudget && displayAmount > 0 && spent > displayAmount;
+  const pct     = hasBudget && displayAmount > 0 ? Math.min(100, (spent / displayAmount) * 100) : 0;
+  const isOver  = hasBudget && displayAmount > 0 && spent > displayAmount;
   const barColor = isOver ? "#f87171" : pct > 80 ? "#facc15" : "#fb923c";
-  const iconBg = category.color ? category.color + "22" : "#f3f4f6";
+  const iconBg   = category.color ? category.color + "22" : "#f3f4f6";
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">

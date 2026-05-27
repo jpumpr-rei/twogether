@@ -7,7 +7,7 @@ import type { CategoryRow, BudgetRow, BudgetSlot } from "./types";
 export default async function BudgetsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; month?: string; year?: string }>;
+  searchParams: Promise<{ view?: string; month?: string; year?: string; from?: string; to?: string }>;
 }) {
   const sp = await searchParams;
   const activePeriod = parseBudgetPeriod(sp);
