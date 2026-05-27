@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo, useRef, useCallback } from "react";
+import { useState, useTransition, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TransactionSheet from "./TransactionSheet";
 import DateFilterSheet from "@/components/ui/DateFilterSheet";
@@ -94,13 +94,14 @@ function TxListRow({
   isMultiSelect,
   isSelected,
   onTap,
-  onLongPress,
+  onSelect,
 }: {
   tx: TxRow;
   isMultiSelect: boolean;
   isSelected: boolean;
   onTap: () => void;
-  onLongPress: () => void;
+  /** Enter multi-select (or toggle) — triggered by icon click on desktop or long-press on touch */
+  onSelect: () => void;
 }) {
   const hasSplits = tx.splits.length > 0;
   const category = tx.category;
@@ -108,15 +109,17 @@ function TxListRow({
   const displayCategory = hasSplits ? (tx.splits[0]?.category ?? null) : category;
   const iconBg = displayCategory?.color ? displayCategory.color + "22" : "#f3f4f6";
 
+  // Long-press for touch devices
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didLongPress = useRef(false);
 
-  function startPress() {
+  function startPress(e: React.PointerEvent) {
+    if (e.pointerType === "mouse") return; // desktop uses hover+click instead
     didLongPress.current = false;
     timerRef.current = setTimeout(() => {
       didLongPress.current = true;
       navigator.vibrate?.(30);
-      onLongPress();
+      onSelect();
     }, 450);
   }
 
@@ -124,67 +127,84 @@ function TxListRow({
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
   }
 
-  function handleClick() {
+  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
     cancelPress();
-    if (!didLongPress.current) onTap();
+    if (didLongPress.current) return;
+
+    if (isMultiSelect) { onSelect(); return; }
+
+    // Desktop: clicking the icon area (leftmost ~56 px) enters multi-select
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (e.clientX - rect.left < 56) { onSelect(); return; }
+
+    onTap();
   }
 
   return (
-    <button
-      onPointerDown={startPress}
-      onPointerUp={cancelPress}
-      onPointerLeave={cancelPress}
-      onClick={handleClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors select-none ${
-        isSelected ? "bg-orange-50" : "hover:bg-gray-50 active:bg-gray-50"
-      }`}
-    >
-      {/* Checkbox (multi-select) or category icon */}
-      {isMultiSelect ? (
-        <div
-          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-            isSelected ? "bg-orange-500 border-orange-500" : "border-gray-300 bg-white"
-          }`}
-        >
-          {isSelected && (
-            <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2"
-                strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </div>
-      ) : (
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-          style={{ backgroundColor: iconBg }}
-        >
-          {displayCategory?.icon ?? "📦"}
-        </div>
-      )}
-
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-gray-900 truncate text-sm">
-          {tx.merchant_name ?? "Unknown merchant"}
-        </p>
-        <p className="text-xs text-gray-400 truncate">
-          {hasSplits ? (
-            tx.splits.map((s) => s.category?.name ?? "Uncategorized").join(" · ")
-          ) : category ? (
-            category.name
-          ) : (
-            <span className="text-orange-400">Uncategorized</span>
-          )}
-          {tx.is_pending && <span className="ml-1 text-orange-400">· Pending</span>}
-        </p>
-      </div>
-      <span
-        className={`font-semibold tabular-nums text-sm flex-shrink-0 ${
-          isCredit ? "text-green-500" : "text-gray-800"
+    <div className="group">
+      <button
+        onPointerDown={startPress}
+        onPointerUp={cancelPress}
+        onPointerLeave={cancelPress}
+        onClick={handleClick}
+        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors select-none ${
+          isSelected ? "bg-orange-50" : "hover:bg-gray-50 active:bg-gray-50"
         }`}
       >
-        {isCredit ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
-      </span>
-    </button>
+        {/* Icon / checkbox — Gmail-style: icon fades to checkbox on hover or in multi-select */}
+        <div className="relative w-10 h-10 flex-shrink-0">
+          {/* Category icon */}
+          <div
+            className={`absolute inset-0 rounded-full flex items-center justify-center text-lg transition-opacity duration-150 pointer-events-none ${
+              isMultiSelect ? "opacity-0" : "opacity-100 group-hover:opacity-0"
+            }`}
+            style={{ backgroundColor: iconBg }}
+          >
+            {displayCategory?.icon ?? "📦"}
+          </div>
+
+          {/* Checkbox */}
+          <div
+            className={`absolute inset-0 rounded-full border-2 flex items-center justify-center transition-opacity duration-150 pointer-events-none ${
+              isSelected ? "bg-orange-500 border-orange-500" : "border-gray-300 bg-white"
+            } ${
+              isMultiSelect || isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
+          >
+            {isSelected && (
+              <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-gray-900 truncate text-sm">
+            {tx.merchant_name ?? "Unknown merchant"}
+          </p>
+          <p className="text-xs text-gray-400 truncate">
+            {hasSplits ? (
+              tx.splits.map((s) => s.category?.name ?? "Uncategorized").join(" · ")
+            ) : category ? (
+              category.name
+            ) : (
+              <span className="text-orange-400">Uncategorized</span>
+            )}
+            {tx.is_pending && <span className="ml-1 text-orange-400">· Pending</span>}
+          </p>
+        </div>
+
+        <span
+          className={`font-semibold tabular-nums text-sm flex-shrink-0 ${
+            isCredit ? "text-green-500" : "text-gray-800"
+          }`}
+        >
+          {isCredit ? "+" : ""}${Math.abs(tx.amount).toFixed(2)}
+        </span>
+      </button>
+    </div>
   );
 }
 
@@ -475,8 +495,8 @@ export default function TransactionsClient({
                     tx={tx}
                     isMultiSelect={isMultiSelect}
                     isSelected={multiSelectIds.has(tx.id)}
-                    onTap={() => isMultiSelect ? toggleMultiSelect(tx.id) : setSelectedTx(tx)}
-                    onLongPress={() => enterMultiSelect(tx.id)}
+                    onTap={() => setSelectedTx(tx)}
+                    onSelect={() => isMultiSelect ? toggleMultiSelect(tx.id) : enterMultiSelect(tx.id)}
                   />
                 ))}
               </div>
