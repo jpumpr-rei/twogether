@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import TransactionSheet from "./TransactionSheet";
 import DateFilterSheet from "@/components/ui/DateFilterSheet";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/dateFilter";
 import type { TxRow, CategoryInfo, CardInfo } from "./types";
 import SyncButton from "@/components/ui/SyncButton";
+import { bulkRecategorize } from "./actions";
 
 // ── Account filter sheet ──────────────────────────────────────────────────────
 function AccountFilterSheet({
@@ -88,24 +89,79 @@ function AccountFilterSheet({
 }
 
 // ── Transaction list row ──────────────────────────────────────────────────────
-function TxListRow({ tx, onTap }: { tx: TxRow; onTap: () => void }) {
+function TxListRow({
+  tx,
+  isMultiSelect,
+  isSelected,
+  onTap,
+  onLongPress,
+}: {
+  tx: TxRow;
+  isMultiSelect: boolean;
+  isSelected: boolean;
+  onTap: () => void;
+  onLongPress: () => void;
+}) {
   const hasSplits = tx.splits.length > 0;
   const category = tx.category;
   const isCredit = tx.amount < 0;
   const displayCategory = hasSplits ? (tx.splits[0]?.category ?? null) : category;
   const iconBg = displayCategory?.color ? displayCategory.color + "22" : "#f3f4f6";
 
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didLongPress = useRef(false);
+
+  function startPress() {
+    didLongPress.current = false;
+    timerRef.current = setTimeout(() => {
+      didLongPress.current = true;
+      navigator.vibrate?.(30);
+      onLongPress();
+    }, 450);
+  }
+
+  function cancelPress() {
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+  }
+
+  function handleClick() {
+    cancelPress();
+    if (!didLongPress.current) onTap();
+  }
+
   return (
     <button
-      onClick={onTap}
-      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-50 transition-colors"
+      onPointerDown={startPress}
+      onPointerUp={cancelPress}
+      onPointerLeave={cancelPress}
+      onClick={handleClick}
+      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors select-none ${
+        isSelected ? "bg-orange-50" : "hover:bg-gray-50 active:bg-gray-50"
+      }`}
     >
-      <div
-        className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-        style={{ backgroundColor: iconBg }}
-      >
-        {displayCategory?.icon ?? "📦"}
-      </div>
+      {/* Checkbox (multi-select) or category icon */}
+      {isMultiSelect ? (
+        <div
+          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+            isSelected ? "bg-orange-500 border-orange-500" : "border-gray-300 bg-white"
+          }`}
+        >
+          {isSelected && (
+            <svg className="w-3 h-3 text-white" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </div>
+      ) : (
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+          style={{ backgroundColor: iconBg }}
+        >
+          {displayCategory?.icon ?? "📦"}
+        </div>
+      )}
+
       <div className="flex-1 min-w-0">
         <p className="font-medium text-gray-900 truncate text-sm">
           {tx.merchant_name ?? "Unknown merchant"}
@@ -132,6 +188,59 @@ function TxListRow({ tx, onTap }: { tx: TxRow; onTap: () => void }) {
   );
 }
 
+// ── Bulk category sheet ───────────────────────────────────────────────────────
+function BulkCategorySheet({
+  categories,
+  count,
+  onSelect,
+  onClose,
+}: {
+  categories: CategoryInfo[];
+  count: number;
+  onSelect: (categoryId: string | null) => void;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
+      <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] flex flex-col max-h-[80vh]">
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-4 mb-1 flex-shrink-0" />
+        <div className="px-5 py-3 border-b border-gray-100 flex-shrink-0">
+          <p className="font-bold text-gray-900">Assign category</p>
+          <p className="text-xs text-gray-400 mt-0.5">{count} transaction{count !== 1 ? "s" : ""} selected</p>
+        </div>
+        <div className="overflow-y-auto flex-1 divide-y divide-gray-50 pb-safe">
+          <button
+            onClick={() => onSelect(null)}
+            className="w-full px-5 py-4 flex items-center gap-3 hover:bg-gray-50 active:bg-gray-50"
+          >
+            <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-lg">📦</div>
+            <span className="text-sm font-medium text-gray-500">Uncategorized</span>
+          </button>
+          {categories.map((cat) => {
+            const iconBg = cat.color ? cat.color + "22" : "#f3f4f6";
+            return (
+              <button
+                key={cat.id}
+                onClick={() => onSelect(cat.id)}
+                className="w-full px-5 py-4 flex items-center gap-3 hover:bg-gray-50 active:bg-gray-50"
+              >
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                  style={{ backgroundColor: iconBg }}
+                >
+                  {cat.icon ?? "📦"}
+                </div>
+                <span className="text-sm font-medium text-gray-900">{cat.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function TransactionsClient({
   transactions,
@@ -153,6 +262,58 @@ export default function TransactionsClient({
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set());
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [showAccountFilter, setShowAccountFilter] = useState(false);
+
+  // ── Multi-select ────────────────────────────────────────────────────────────
+  const [multiSelectIds, setMultiSelectIds] = useState<Set<string>>(new Set());
+  const [showBulkCategory, setShowBulkCategory] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const isMultiSelect = multiSelectIds.size > 0;
+
+  function toggleMultiSelect(id: string) {
+    setMultiSelectIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function enterMultiSelect(id: string) {
+    setMultiSelectIds(new Set([id]));
+  }
+
+  function exitMultiSelect() {
+    setMultiSelectIds(new Set());
+    setShowBulkCategory(false);
+  }
+
+  // Select all transactions (across all loaded data) that share a merchant
+  // name with any currently selected transaction.
+  function selectMatching() {
+    const selectedNames = new Set(
+      transactions
+        .filter((tx) => multiSelectIds.has(tx.id) && tx.merchant_name)
+        .map((tx) => tx.merchant_name as string)
+    );
+    const matchingIds = new Set(
+      transactions
+        .filter((tx) => tx.merchant_name && selectedNames.has(tx.merchant_name))
+        .map((tx) => tx.id)
+    );
+    setMultiSelectIds(matchingIds);
+  }
+
+  async function handleBulkAssign(categoryId: string | null) {
+    setBulkSaving(true);
+    setShowBulkCategory(false);
+    try {
+      await bulkRecategorize([...multiSelectIds], categoryId);
+      exitMultiSelect();
+      refresh();
+    } finally {
+      setBulkSaving(false);
+    }
+  }
 
   function refresh() {
     startTransition(() => router.refresh());
@@ -309,7 +470,14 @@ export default function TransactionsClient({
               </p>
               <div className="bg-white rounded-2xl divide-y divide-gray-50 shadow-sm overflow-hidden">
                 {txs.map((tx) => (
-                  <TxListRow key={tx.id} tx={tx} onTap={() => setSelectedTx(tx)} />
+                  <TxListRow
+                    key={tx.id}
+                    tx={tx}
+                    isMultiSelect={isMultiSelect}
+                    isSelected={multiSelectIds.has(tx.id)}
+                    onTap={() => isMultiSelect ? toggleMultiSelect(tx.id) : setSelectedTx(tx)}
+                    onLongPress={() => enterMultiSelect(tx.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -318,7 +486,7 @@ export default function TransactionsClient({
       )}
 
       {/* Sheets */}
-      {selectedTx && (
+      {selectedTx && !isMultiSelect && (
         <TransactionSheet
           tx={selectedTx}
           categories={categories}
@@ -346,6 +514,52 @@ export default function TransactionsClient({
           onClearAll={() => setSelectedCardIds(new Set())}
           onClose={() => setShowAccountFilter(false)}
         />
+      )}
+
+      {showBulkCategory && (
+        <BulkCategorySheet
+          categories={categories}
+          count={multiSelectIds.size}
+          onSelect={handleBulkAssign}
+          onClose={() => setShowBulkCategory(false)}
+        />
+      )}
+
+      {/* Bulk action bar — sits above the tab bar */}
+      {isMultiSelect && (
+        <div className="fixed bottom-0 inset-x-0 z-[55] bg-white border-t border-gray-200 shadow-lg pb-safe">
+          <div className="px-4 py-3 flex items-center gap-2">
+            {/* Cancel */}
+            <button
+              onClick={exitMultiSelect}
+              className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 active:bg-gray-100 flex-shrink-0 text-lg"
+            >
+              ×
+            </button>
+
+            {/* Count */}
+            <p className="text-sm font-semibold text-gray-700 flex-1">
+              {multiSelectIds.size} selected
+            </p>
+
+            {/* Select matching */}
+            <button
+              onClick={selectMatching}
+              className="px-3 py-2 text-xs font-semibold text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 active:bg-gray-200 flex-shrink-0"
+            >
+              Select matching
+            </button>
+
+            {/* Assign category */}
+            <button
+              onClick={() => setShowBulkCategory(true)}
+              disabled={bulkSaving}
+              className="px-3 py-2 text-xs font-semibold text-white bg-orange-500 rounded-xl hover:bg-orange-600 active:bg-orange-600 disabled:opacity-50 flex-shrink-0"
+            >
+              {bulkSaving ? "Saving…" : "Assign category"}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

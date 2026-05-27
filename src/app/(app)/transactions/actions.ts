@@ -92,6 +92,44 @@ export async function assignCategory(
   revalidatePath("/budgets");
 }
 
+export async function bulkRecategorize(
+  transactionIds: string[],
+  categoryId: string | null
+) {
+  if (!transactionIds.length) return;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("couple_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.couple_id) throw new Error("No household");
+
+  const coupleId = profile.couple_id;
+
+  // Clear splits for all selected transactions
+  await supabase
+    .from("transaction_splits")
+    .delete()
+    .in("transaction_id", transactionIds);
+
+  // Bulk update — filter by couple_id for security
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("transactions")
+    .update({ category_id: categoryId, category_manually_set: true })
+    .in("id", transactionIds)
+    .eq("couple_id", coupleId);
+
+  if (error) throw error;
+
+  revalidatePath("/transactions");
+  revalidatePath("/budgets");
+}
+
 export async function saveSplits(
   transactionId: string,
   splits: { category_id: string | null; amount: number }[]
