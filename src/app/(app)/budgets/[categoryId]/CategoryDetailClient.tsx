@@ -180,7 +180,7 @@ export default function CategoryDetailClient({
       {/* Header */}
       <div className="bg-white px-4 pt-14 pb-4 flex items-center gap-3 border-b border-gray-100">
         <button
-          onClick={() => router.back()}
+          onClick={() => router.push("/budgets" + budgetPeriodToSearch(activePeriod))}
           className="text-orange-500 font-medium text-base hover:opacity-75 active:opacity-60 mr-1"
         >
           ← Back
