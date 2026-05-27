@@ -151,7 +151,7 @@ export default function TransactionSheet({
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
-      <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] px-5 pt-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] px-5 pt-4 pb-10 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
 
         {/* Transaction header */}
