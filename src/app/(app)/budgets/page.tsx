@@ -57,8 +57,7 @@ export default async function BudgetsPage({
       .select("id, category_id, amount")
       .eq("couple_id", coupleId)
       .gte("date", startDate)
-      .lte("date", endDate)
-      .gt("amount", 0);
+      .lte("date", endDate);
 
     const txList = (txs ?? []) as { id: string; category_id: string | null; amount: number }[];
 

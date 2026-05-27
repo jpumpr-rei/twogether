@@ -79,9 +79,8 @@ export default async function CategoryDetailPage({
   }
 
   // Direct spending + any split amounts for this category in the period
-  const directSpent = transactions
-    .filter((tx) => tx.amount > 0)
-    .reduce((s, tx) => s + tx.amount, 0);
+  // Sum all amounts — positive charges add, negative refunds subtract
+  const directSpent = transactions.reduce((s, tx) => s + tx.amount, 0);
 
   let splitSpent = 0;
   if (coupleId) {
