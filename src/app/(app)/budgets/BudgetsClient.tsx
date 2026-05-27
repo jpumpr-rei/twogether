@@ -60,12 +60,19 @@ export default function BudgetsClient({
   const [rangeTo, setRangeTo] = useState<string>(
     activePeriod.type === "range" ? activePeriod.to : defaultTo
   );
+  // Remember the last-visited month so switching back to Monthly doesn't reset to January
+  const [lastMonth, setLastMonth] = useState<string>(
+    activePeriod.type === "month" ? activePeriod.month : currentMonth
+  );
 
   // Keep inputs in sync when URL changes (e.g. browser back/forward)
   useEffect(() => {
     if (activePeriod.type === "range") {
       setRangeFrom(activePeriod.from);
       setRangeTo(activePeriod.to);
+    }
+    if (activePeriod.type === "month") {
+      setLastMonth(activePeriod.month);
     }
   }, [activePeriod]);
 
@@ -91,6 +98,7 @@ export default function BudgetsClient({
 
   function navigate(period: BudgetPeriod) {
     setShowPicker(false);
+    if (period.type === "month") setLastMonth(period.month);
     startTransition(() => router.push("/budgets" + budgetPeriodToSearch(period)));
   }
 
@@ -117,8 +125,7 @@ export default function BudgetsClient({
           : now.getFullYear();
       navigate({ type: "year", year });
     } else {
-      const year = activePeriod.type === "year" ? activePeriod.year : now.getFullYear();
-      navigate({ type: "month", month: `${year}-01` });
+      navigate({ type: "month", month: lastMonth });
     }
   }
 
@@ -267,7 +274,7 @@ export default function BudgetsClient({
             slot={slot}
             viewType={viewType}
             rangeCount={rangeCount}
-            onNavigate={() => router.push(`/budgets/${slot.category.id}`)}
+            onNavigate={() => router.push(`/budgets/${slot.category.id}${budgetPeriodToSearch(activePeriod)}`)}
           />
         ))}
       </div>

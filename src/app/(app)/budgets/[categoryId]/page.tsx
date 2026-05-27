@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import CategoryDetailClient from "./CategoryDetailClient";
+import { parseBudgetPeriod, budgetPeriodBounds } from "@/lib/budgetPeriod";
 import type { CategoryRow, BudgetRow } from "../types";
 import type { CategoryInfo } from "../../transactions/types";
 
@@ -15,10 +16,16 @@ export type TxRow = {
 
 export default async function CategoryDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ categoryId: string }>;
+  searchParams: Promise<{ view?: string; month?: string; year?: string; from?: string; to?: string }>;
 }) {
   const { categoryId } = await params;
+  const sp = await searchParams;
+  const activePeriod = parseBudgetPeriod(sp);
+  const { startDate, endDate } = budgetPeriodBounds(activePeriod);
+
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -53,10 +60,6 @@ export default async function CategoryDetailPage({
     budget = (data as BudgetRow | null) ?? null;
   }
 
-  // Fetch this month's transactions for the category
-  const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString().split("T")[0];
-
   let transactions: TxRow[] = [];
   let allCategories: CategoryInfo[] = [];
   if (coupleId) {
@@ -66,7 +69,8 @@ export default async function CategoryDetailPage({
         .select("id, merchant_name, amount, date, is_pending, category_id")
         .eq("couple_id", coupleId)
         .eq("category_id", categoryId)
-        .gte("date", startOfMonth)
+        .gte("date", startDate)
+        .lte("date", endDate)
         .order("date", { ascending: false }),
       supabase.from("categories").select("id, name, icon, color").order("name"),
     ]);
@@ -74,7 +78,7 @@ export default async function CategoryDetailPage({
     allCategories = (catData ?? []) as CategoryInfo[];
   }
 
-  // Direct spending + any split amounts for this category
+  // Direct spending + any split amounts for this category in the period
   const directSpent = transactions
     .filter((tx) => tx.amount > 0)
     .reduce((s, tx) => s + tx.amount, 0);
@@ -105,6 +109,7 @@ export default async function CategoryDetailPage({
       transactions={transactions}
       allCategories={allCategories}
       spent={spent}
+      activePeriod={activePeriod}
     />
   );
 }
