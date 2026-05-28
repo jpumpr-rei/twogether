@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 
+// Allow up to 60 s on Vercel Pro / 10 s on Hobby (default would be 10 s which
+// is often not enough for the Supabase queries + Anthropic first-token latency)
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "AI not configured" }, { status: 503 });
@@ -115,6 +119,12 @@ Guidelines:
               controller.enqueue(encoder.encode(event.delta.text));
             }
           }
+        } catch (streamErr) {
+          console.error("AI stream error:", streamErr);
+          // Surface the failure as a visible message rather than silent "…"
+          controller.enqueue(
+            encoder.encode("Sorry, I couldn't get a response right now. Please try again.")
+          );
         } finally {
           controller.close();
         }
