@@ -32,7 +32,7 @@ export default async function CategoryDetailPage({
   // Fetch the category
   const { data: categoryData } = await supabase
     .from("categories")
-    .select("id, name, icon, color")
+    .select("id, name, icon, color, is_default")
     .eq("id", categoryId)
     .single();
 

@@ -3,6 +3,7 @@ export type CategoryRow = {
   name: string;
   icon: string | null;
   color: string | null;
+  is_default: boolean;
 };
 
 export type BudgetRow = {

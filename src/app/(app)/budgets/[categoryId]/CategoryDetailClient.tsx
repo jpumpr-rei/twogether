@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import EditSheet from "../EditSheet";
 import TransactionSheet from "../../transactions/TransactionSheet";
+import { deleteCategory } from "./actions";
 import {
   budgetPeriodLabel,
   budgetPeriodToSearch,
@@ -49,6 +50,9 @@ export default function CategoryDetailClient({
   const [showEdit, setShowEdit] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [selectedTx, setSelectedTx] = useState<TxRow | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(false);
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -174,6 +178,18 @@ export default function CategoryDetailClient({
     startTransition(() => router.refresh());
   }
 
+  async function handleDelete() {
+    setIsDeleting(true);
+    setDeleteError(false);
+    try {
+      await deleteCategory(category.id);
+      router.push("/budgets");
+    } catch {
+      setDeleteError(true);
+      setIsDeleting(false);
+    }
+  }
+
   const slot = { category, budget, spent };
 
   return (
@@ -193,12 +209,22 @@ export default function CategoryDetailClient({
           {category.icon ?? "📦"}
         </div>
         <h1 className="font-bold text-gray-900 text-lg flex-1 truncate">{category.name}</h1>
-        <button
-          onClick={() => setShowEdit(true)}
-          className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
-        >
-          {budget ? "Edit" : "Set budget"}
-        </button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <button
+            onClick={() => setShowEdit(true)}
+            className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
+          >
+            {budget ? "Edit" : "Set budget"}
+          </button>
+          {!category.is_default && (
+            <button
+              onClick={() => { setShowDeleteConfirm(true); setDeleteError(false); }}
+              className="text-red-400 font-medium text-sm hover:opacity-75 active:opacity-60"
+            >
+              Delete
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Period controls */}
@@ -390,6 +416,52 @@ export default function CategoryDetailClient({
           onClose={() => setShowEdit(false)}
           onSaved={() => { setShowEdit(false); refresh(); }}
         />
+      )}
+
+      {showDeleteConfirm && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-[60]"
+            onClick={() => !isDeleting && setShowDeleteConfirm(false)}
+          />
+          <div className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] px-5 pt-4 pb-10 shadow-2xl">
+            <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"
+              style={{ backgroundColor: iconBg }}
+            >
+              {category.icon ?? "📦"}
+            </div>
+            <h2 className="text-center font-bold text-gray-900 text-lg mb-1">
+              Delete &ldquo;{category.name}&rdquo;?
+            </h2>
+            <p className="text-center text-sm text-gray-500 mb-1">
+              All transactions in this category will become uncategorized.
+            </p>
+            <p className="text-center text-sm text-gray-500 mb-6">
+              Any budget set for it will also be removed.
+            </p>
+            {deleteError && (
+              <p className="text-center text-sm text-red-500 mb-4">
+                Something went wrong — please try again.
+              </p>
+            )}
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="w-full bg-red-500 text-white font-semibold rounded-2xl py-3.5 text-base disabled:opacity-50 active:bg-red-600 mb-3"
+            >
+              {isDeleting ? "Deleting…" : "Delete category"}
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={isDeleting}
+              className="w-full text-gray-500 font-medium py-2 text-sm disabled:opacity-40"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
 
       {selectedTx && (

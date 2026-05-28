@@ -3,8 +3,6 @@ import { redirect } from "next/navigation";
 import SignOutButton from "@/components/ui/SignOutButton";
 import CoupleSection from "./CoupleSection";
 import EditNameRow from "./EditNameRow";
-import CategoriesSection from "./CategoriesSection";
-import type { CategoryRow } from "./CategoriesSection";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -24,7 +22,6 @@ export default async function SettingsPage() {
   type PartnerRow = { display_name: string | null; email: string } | null;
   let partner: PartnerRow = null;
 
-  let customCategories: CategoryRow[] = [];
   if (profile?.couple_id) {
     const [{ data: coupleData }, { data: partnerData }] = await Promise.all([
       supabase
@@ -41,13 +38,6 @@ export default async function SettingsPage() {
     ]);
     couple = coupleData as CoupleRow | null;
     partner = partnerData as PartnerRow;
-
-    const { data: catData } = await supabase
-      .from("categories")
-      .select("id, name, icon, color")
-      .eq("couple_id", profile.couple_id)
-      .order("name");
-    customCategories = (catData ?? []) as CategoryRow[];
   }
 
   return (
@@ -63,11 +53,6 @@ export default async function SettingsPage() {
       {/* Household / Partner */}
       <Section title="Household">
         <CoupleSection couple={couple} partner={partner} />
-      </Section>
-
-      {/* Custom Categories */}
-      <Section title="Custom Categories">
-        <CategoriesSection categories={customCategories} />
       </Section>
 
       <SignOutButton />
