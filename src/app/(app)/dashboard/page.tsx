@@ -23,6 +23,12 @@ export type RecentTx = {
   category_id: string | null;
 };
 
+export type BudgetInfo = {
+  category_id: string | null;
+  amount: number;
+  period: string;
+};
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -58,7 +64,7 @@ export default async function DashboardPage() {
   chartStart.setMonth(chartStart.getMonth() - 12);
   const startDate = chartStart.toISOString().split("T")[0];
 
-  const [{ data: txData }, { data: catData }, { data: recentData }] = await Promise.all([
+  const [{ data: txData }, { data: catData }, { data: recentData }, { data: budgetData }] = await Promise.all([
     supabase
       .from("transactions")
       .select("amount, date, category_id")
@@ -75,6 +81,10 @@ export default async function DashboardPage() {
       .eq("couple_id", coupleId)
       .order("date", { ascending: false })
       .limit(5),
+    supabase
+      .from("budgets")
+      .select("category_id, amount, period")
+      .eq("couple_id", coupleId),
   ]);
 
   return (
@@ -83,6 +93,7 @@ export default async function DashboardPage() {
       transactions={(txData ?? []) as TxPoint[]}
       categories={(catData ?? []) as CategoryInfo[]}
       recentTransactions={(recentData ?? []) as RecentTx[]}
+      budgets={(budgetData ?? []) as BudgetInfo[]}
     />
   );
 }

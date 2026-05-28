@@ -8,14 +8,15 @@ import {
   ComposedChart, Line,
   XAxis, YAxis,
   Tooltip, ResponsiveContainer,
-  CartesianGrid,
+  CartesianGrid, ReferenceLine,
 } from "recharts";
 import AIChatSheet from "./AIChatSheet";
-import type { TxPoint, CategoryInfo, RecentTx } from "./page";
+import type { TxPoint, CategoryInfo, RecentTx, BudgetInfo } from "./page";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ChartPoint = { label: string; amount: number };
+// periodKey: "YYYY-MM" for monthly view, "YYYY" for annual view
+type ChartPoint = { label: string; amount: number; periodKey: string };
 type ChartType = "bar" | "area" | "both";
 type ViewType = "monthly" | "annual";
 
@@ -46,11 +47,13 @@ export default function DashboardClient({
   transactions,
   categories,
   recentTransactions,
+  budgets,
 }: {
   name: string;
   transactions: TxPoint[];
   categories: CategoryInfo[];
   recentTransactions: RecentTx[];
+  budgets: BudgetInfo[];
 }) {
   const router = useRouter();
   const [viewType, setViewType] = useState<ViewType>("monthly");
@@ -111,7 +114,7 @@ export default function DashboardClient({
         const amount = filtered
           .filter((t) => t.date.startsWith(key))
           .reduce((s, t) => s + t.amount, 0);
-        points.push({ label, amount: Math.max(0, Math.round(amount)) });
+        points.push({ label, amount: Math.max(0, Math.round(amount)), periodKey: key });
       }
       return points;
     } else {
@@ -121,10 +124,45 @@ export default function DashboardClient({
         const amount = filtered
           .filter((t) => t.date.startsWith(String(year)))
           .reduce((s, t) => s + t.amount, 0);
-        return { label: String(year), amount: Math.max(0, Math.round(amount)) };
+        return { label: String(year), amount: Math.max(0, Math.round(amount)), periodKey: String(year) };
       });
     }
   }, [transactions, viewType, selectedCatId]);
+
+  // ── Budget reference line ────────────────────────────────────────────────────
+
+  const budgetLine = useMemo((): number | null => {
+    if (!budgets.length) return null;
+
+    const toMonthly = (b: BudgetInfo) =>
+      b.period === "yearly"  ? b.amount / 12 :
+      b.period === "weekly"  ? (b.amount * 52) / 12 :
+      b.amount;
+
+    let monthly: number;
+    if (selectedCatId) {
+      const b = budgets.find((b) => b.category_id === selectedCatId);
+      if (!b) return null;
+      monthly = toMonthly(b);
+    } else {
+      monthly = budgets.reduce((s, b) => s + toMonthly(b), 0);
+    }
+
+    return Math.round(viewType === "annual" ? monthly * 12 : monthly);
+  }, [budgets, selectedCatId, viewType]);
+
+  // ── Chart click → budget detail page ────────────────────────────────────────
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function handleChartClick(data: any) {
+    if (!selectedCatId || !data?.activePayload?.[0]) return;
+    const { periodKey } = data.activePayload[0].payload as ChartPoint;
+    if (viewType === "monthly") {
+      router.push(`/budgets/${selectedCatId}?view=month&month=${periodKey}`);
+    } else {
+      router.push(`/budgets/${selectedCatId}?view=year&year=${periodKey}`);
+    }
+  }
 
   const selectedCat = selectedCatId ? catMap.get(selectedCatId) : null;
   const accentColor = selectedCat?.color ?? "#f97316";
@@ -141,27 +179,46 @@ export default function DashboardClient({
 
   const chartMargin = { top: 4, right: 4, left: -10, bottom: 0 };
 
-  function renderChart() {
-    const common = {
-      data: chartData,
-      margin: chartMargin,
-    };
+  const budgetRefLine = budgetLine && budgetLine > 0 ? (
+    <ReferenceLine
+      y={budgetLine}
+      stroke="#6b7280"
+      strokeDasharray="5 4"
+      strokeWidth={1.5}
+      label={{
+        value: `Budget ${yFormatter(budgetLine)}`,
+        position: "insideTopRight",
+        fontSize: 10,
+        fill: "#6b7280",
+      }}
+    />
+  ) : null;
 
+  const clickable = !!selectedCatId;
+  const commonProps = {
+    data: chartData,
+    margin: chartMargin,
+    onClick: handleChartClick,
+    style: clickable ? { cursor: "pointer" } : undefined,
+  };
+
+  function renderChart() {
     if (chartType === "bar") {
       return (
-        <BarChart {...common}>
+        <BarChart {...commonProps}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
           <XAxis dataKey="label" {...axisProps} />
           <YAxis tickFormatter={yFormatter} {...axisProps} width={44} />
           <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f9fafb" }} />
           <Bar dataKey="amount" fill={accentColor} radius={[5, 5, 0, 0]} maxBarSize={44} />
+          {budgetRefLine}
         </BarChart>
       );
     }
 
     if (chartType === "area") {
       return (
-        <AreaChart {...common}>
+        <AreaChart {...commonProps}>
           <defs>
             <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%"  stopColor={accentColor} stopOpacity={0.25} />
@@ -181,13 +238,14 @@ export default function DashboardClient({
             dot={false}
             activeDot={{ r: 4, fill: accentColor, strokeWidth: 0 }}
           />
+          {budgetRefLine}
         </AreaChart>
       );
     }
 
     // "both" — bars with line overlay
     return (
-      <ComposedChart {...common}>
+      <ComposedChart {...commonProps}>
         <defs>
           <linearGradient id="grad2" x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%"  stopColor={accentColor} stopOpacity={0.15} />
@@ -207,6 +265,7 @@ export default function DashboardClient({
           dot={false}
           activeDot={{ r: 4, fill: accentColor, strokeWidth: 0 }}
         />
+        {budgetRefLine}
       </ComposedChart>
     );
   }
