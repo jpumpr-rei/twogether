@@ -376,6 +376,7 @@ export default function CategoryDetailClient({
                 const displayAmt = splitAmountOverrides[tx.id] ?? tx.amount;
                 const isSplit = tx.id in splitAmountOverrides;
                 const isCredit = displayAmt < 0;
+                const isPayment = tx.is_transfer && !tx.category;
                 return (
                   <button
                     key={tx.id}
@@ -393,9 +394,14 @@ export default function CategoryDetailClient({
                         {tx.merchant_name ?? "Unknown merchant"}
                       </p>
                       <p className="text-xs text-gray-400">
+                        {isPayment ? (
+                          <span className="text-blue-400">Payment</span>
+                        ) : isSplit ? (
+                          <span className="text-blue-400">Split</span>
+                        ) : null}
+                        {(isPayment || isSplit) && " · "}
                         {tx.date}
                         {tx.is_pending && <span className="ml-1 text-orange-400">· Pending</span>}
-                        {isSplit && <span className="ml-1 text-blue-400">· Split</span>}
                       </p>
                     </div>
                     <span className={`font-semibold text-sm tabular-nums ${isCredit ? "text-green-500" : "text-gray-800"}`}>

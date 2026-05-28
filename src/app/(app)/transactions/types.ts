@@ -18,6 +18,7 @@ export type TxRow = {
   amount: number;
   date: string;
   is_pending: boolean;
+  is_transfer: boolean;
   category_id: string | null;
   card_id: string | null;
   category: CategoryInfo | null;

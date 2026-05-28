@@ -52,7 +52,7 @@ export default async function CategoryDetailPage({
   }
 
   const TX_SELECT = `
-    id, merchant_name, amount, date, is_pending, category_id, card_id,
+    id, merchant_name, amount, date, is_pending, is_transfer, category_id, card_id,
     category:categories(id, name, icon, color),
     card:cards(institution_name, last_four)
   `;

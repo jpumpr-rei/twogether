@@ -103,6 +103,12 @@ export async function syncCouple(
                 categoryMap
               );
 
+          // Credit card payments and other loan payments are transfers —
+          // they're already counted in the original purchase categories so
+          // we flag them to show as "Payment" rather than "Uncategorized".
+          const isTransfer =
+            tx.personal_finance_category?.primary === "LOAN_PAYMENTS";
+
           await supabase.from("transactions").upsert(
             {
               couple_id: coupleId,
@@ -113,6 +119,7 @@ export async function syncCouple(
               currency: tx.iso_currency_code ?? "USD",
               date: tx.date,
               is_pending: tx.pending,
+              is_transfer: isTransfer,
               ...(categoryId !== undefined && { category_id: categoryId }),
             },
             { onConflict: "plaid_transaction_id" }

@@ -48,7 +48,7 @@ export default async function TransactionsPage({
     let txQuery = supabase
       .from("transactions")
       .select(
-        `id, merchant_name, amount, date, is_pending, category_id, card_id,
+        `id, merchant_name, amount, date, is_pending, is_transfer, category_id, card_id,
          category:categories(id, name, icon, color),
          card:cards(institution_name, last_four)`
       )

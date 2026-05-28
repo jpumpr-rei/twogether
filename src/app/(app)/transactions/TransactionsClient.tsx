@@ -107,7 +107,12 @@ function TxListRow({
   const category = tx.category;
   const isCredit = tx.amount < 0;
   const displayCategory = hasSplits ? (tx.splits[0]?.category ?? null) : category;
-  const iconBg = displayCategory?.color ? displayCategory.color + "22" : "#f3f4f6";
+  const isPayment = tx.is_transfer && !displayCategory;
+  const iconBg = isPayment
+    ? "#dbeafe"
+    : displayCategory?.color
+    ? displayCategory.color + "22"
+    : "#f3f4f6";
 
   // Long-press for touch devices
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -160,7 +165,7 @@ function TxListRow({
             }`}
             style={{ backgroundColor: iconBg }}
           >
-            {displayCategory?.icon ?? "📦"}
+            {isPayment ? "💳" : displayCategory?.icon ?? "📦"}
           </div>
 
           {/* Checkbox */}
@@ -189,6 +194,8 @@ function TxListRow({
               tx.splits.map((s) => s.category?.name ?? "Uncategorized").join(" · ")
             ) : category ? (
               category.name
+            ) : isPayment ? (
+              <span className="text-blue-400">Payment</span>
             ) : (
               <span className="text-orange-400">Uncategorized</span>
             )}
