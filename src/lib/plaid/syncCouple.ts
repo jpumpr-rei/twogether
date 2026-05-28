@@ -74,6 +74,9 @@ export async function syncCouple(
     try {
       let offset = 0;
       let total = 1;
+      // Track every plaid_transaction_id Plaid returns this sync so we can
+      // clean up stale pending rows afterward.
+      const seenPlaidIds = new Set<string>();
 
       while (offset < total) {
         const txResponse = await plaidClient.transactionsGet({
@@ -87,6 +90,7 @@ export async function syncCouple(
         const txs = txResponse.data.transactions;
 
         for (const tx of txs) {
+          seenPlaidIds.add(tx.transaction_id);
           const cardId = accountToCard.get(tx.account_id) ?? null;
           const isManual = manualIds.has(tx.transaction_id);
           const categoryId = isManual
@@ -118,6 +122,24 @@ export async function syncCouple(
         totalSynced += txs.length;
         offset += txs.length;
         if (txs.length === 0) break;
+      }
+
+      // Remove ghost pending rows: when a pending transaction clears, Plaid
+      // retires its transaction_id and creates a new one for the settled record.
+      // The old pending row never gets updated via upsert — it just silently
+      // disappears from Plaid's responses. Deleting it here keeps the UI clean.
+      // We only touch is_pending = true rows so settled history is never affected.
+      if (seenPlaidIds.size > 0) {
+        const cardIds = [...accountToCard.values()];
+        const idList = [...seenPlaidIds].join(",");
+        await supabase
+          .from("transactions")
+          .delete()
+          .eq("couple_id", coupleId)
+          .in("card_id", cardIds)
+          .eq("is_pending", true)
+          .not("plaid_transaction_id", "is", null)
+          .not("plaid_transaction_id", "in", `(${idList})`);
       }
     } catch (err) {
       console.error(`Sync failed for item ${itemId}:`, err);
