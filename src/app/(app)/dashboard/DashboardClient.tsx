@@ -3,9 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  BarChart, Bar,
-  AreaChart, Area,
-  ComposedChart, Line,
+  ComposedChart, Bar, Line,
   XAxis, YAxis,
   Tooltip, ResponsiveContainer,
   CartesianGrid, ReferenceLine,
@@ -17,7 +15,6 @@ import type { TxPoint, CategoryInfo, RecentTx, BudgetInfo } from "./page";
 
 // periodKey: "YYYY-MM" for monthly view, "YYYY" for annual view
 type ChartPoint = { label: string; amount: number; periodKey: string };
-type ChartType = "bar" | "area" | "both";
 type ViewType = "monthly" | "annual";
 
 const INSIGHT_CACHE_PREFIX = "tw_insights_";
@@ -57,7 +54,6 @@ export default function DashboardClient({
 }) {
   const router = useRouter();
   const [viewType, setViewType] = useState<ViewType>("monthly");
-  const [chartType, setChartType] = useState<ChartType>("both");
   const [selectedCatId, setSelectedCatId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [insights, setInsights] = useState<string[]>([]);
@@ -151,6 +147,14 @@ export default function DashboardClient({
     return Math.round(viewType === "annual" ? monthly * 12 : monthly);
   }, [budgets, selectedCatId, viewType]);
 
+  // Y-axis ceiling: whichever is larger — max spend or budget — with 15%
+  // headroom so the "Budget $Xk" label isn't clipped against the top edge.
+  const yMax = useMemo(() => {
+    const maxData = Math.max(...chartData.map((p) => p.amount), 0);
+    const cap = Math.max(maxData, budgetLine ?? 0);
+    return Math.round(cap * 1.15) || 100;
+  }, [chartData, budgetLine]);
+
   // ── Chart click → budget detail page ────────────────────────────────────────
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -195,80 +199,6 @@ export default function DashboardClient({
   ) : null;
 
   const clickable = !!selectedCatId;
-  const commonProps = {
-    data: chartData,
-    margin: chartMargin,
-    onClick: handleChartClick,
-    style: clickable ? { cursor: "pointer" } : undefined,
-  };
-
-  function renderChart() {
-    if (chartType === "bar") {
-      return (
-        <BarChart {...commonProps}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-          <XAxis dataKey="label" {...axisProps} />
-          <YAxis tickFormatter={yFormatter} {...axisProps} width={44} />
-          <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f9fafb" }} />
-          <Bar dataKey="amount" fill={accentColor} radius={[5, 5, 0, 0]} maxBarSize={44} />
-          {budgetRefLine}
-        </BarChart>
-      );
-    }
-
-    if (chartType === "area") {
-      return (
-        <AreaChart {...commonProps}>
-          <defs>
-            <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%"  stopColor={accentColor} stopOpacity={0.25} />
-              <stop offset="95%" stopColor={accentColor} stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-          <XAxis dataKey="label" {...axisProps} />
-          <YAxis tickFormatter={yFormatter} {...axisProps} width={44} />
-          <Tooltip content={<ChartTooltip />} />
-          <Area
-            type="monotone"
-            dataKey="amount"
-            stroke={accentColor}
-            strokeWidth={2.5}
-            fill="url(#grad)"
-            dot={false}
-            activeDot={{ r: 4, fill: accentColor, strokeWidth: 0 }}
-          />
-          {budgetRefLine}
-        </AreaChart>
-      );
-    }
-
-    // "both" — bars with line overlay
-    return (
-      <ComposedChart {...commonProps}>
-        <defs>
-          <linearGradient id="grad2" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%"  stopColor={accentColor} stopOpacity={0.15} />
-            <stop offset="95%" stopColor={accentColor} stopOpacity={0.01} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-        <XAxis dataKey="label" {...axisProps} />
-        <YAxis tickFormatter={yFormatter} {...axisProps} width={44} />
-        <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f9fafb" }} />
-        <Bar dataKey="amount" fill={fillColor} stroke={accentColor} strokeWidth={1} radius={[5, 5, 0, 0]} maxBarSize={44} />
-        <Line
-          type="monotone"
-          dataKey="amount"
-          stroke={accentColor}
-          strokeWidth={2.5}
-          dot={false}
-          activeDot={{ r: 4, fill: accentColor, strokeWidth: 0 }}
-        />
-        {budgetRefLine}
-      </ComposedChart>
-    );
-  }
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -362,30 +292,35 @@ export default function DashboardClient({
           })}
         </div>
 
-        {/* Chart type toggle */}
-        <div className="flex gap-1 mb-4 bg-gray-50 rounded-xl p-1">
-          {([
-            { type: "bar",  label: "Bar"  },
-            { type: "area", label: "Area" },
-            { type: "both", label: "Both" },
-          ] as { type: ChartType; label: string }[]).map(({ type, label }) => (
-            <button
-              key={type}
-              onClick={() => setChartType(type)}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
-                chartType === type
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-400 hover:text-gray-600"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
         {/* Chart */}
         <ResponsiveContainer width="100%" height={200}>
-          {renderChart()}
+          <ComposedChart
+            data={chartData}
+            margin={chartMargin}
+            onClick={handleChartClick}
+            style={clickable ? { cursor: "pointer" } : undefined}
+          >
+            <defs>
+              <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%"  stopColor={accentColor} stopOpacity={0.15} />
+                <stop offset="95%" stopColor={accentColor} stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+            <XAxis dataKey="label" {...axisProps} />
+            <YAxis tickFormatter={yFormatter} {...axisProps} width={44} domain={[0, yMax]} />
+            <Tooltip content={<ChartTooltip />} cursor={{ fill: "#f9fafb" }} />
+            <Bar dataKey="amount" fill={fillColor} stroke={accentColor} strokeWidth={1} radius={[5, 5, 0, 0]} maxBarSize={44} />
+            <Line
+              type="monotone"
+              dataKey="amount"
+              stroke={accentColor}
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{ r: 4, fill: accentColor, strokeWidth: 0 }}
+            />
+            {budgetRefLine}
+          </ComposedChart>
         </ResponsiveContainer>
 
         {selectedCat && (
