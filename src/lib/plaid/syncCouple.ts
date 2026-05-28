@@ -103,11 +103,20 @@ export async function syncCouple(
                 categoryMap
               );
 
-          // Credit card payments and other loan payments are transfers —
-          // they're already counted in the original purchase categories so
-          // we flag them to show as "Payment" rather than "Uncategorized".
-          const isTransfer =
-            tx.personal_finance_category?.primary === "LOAN_PAYMENTS";
+          // Credit card payments appear as LOAN_PAYMENTS on the checking
+          // account side and TRANSFER_IN on the credit card side (Plaid
+          // treats the card receiving payment as an inbound transfer).
+          // Flag both so all payment rows show as "Payment" not "Uncategorized".
+          // Fallback: some credit-card-side payment receipts (e.g. "Payment Thank You-Mobile")
+          // come back with no personal_finance_category from Plaid. Catch those by
+          // name — only when they would otherwise be uncategorized (categoryId undefined).
+          const plaidPrimary = tx.personal_finance_category?.primary ?? "";
+          const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
+          const isTransferByName =
+            !isTransferByCategory &&
+            categoryId === undefined &&
+            /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
+          const isTransfer = isTransferByCategory || isTransferByName;
 
           await supabase.from("transactions").upsert(
             {
