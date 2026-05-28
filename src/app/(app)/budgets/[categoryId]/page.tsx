@@ -3,16 +3,7 @@ import { redirect } from "next/navigation";
 import CategoryDetailClient from "./CategoryDetailClient";
 import { parseBudgetPeriod, budgetPeriodBounds } from "@/lib/budgetPeriod";
 import type { CategoryRow, BudgetRow } from "../types";
-import type { CategoryInfo } from "../../transactions/types";
-
-export type TxRow = {
-  id: string;
-  merchant_name: string | null;
-  amount: number;
-  date: string;
-  is_pending: boolean;
-  category_id: string | null;
-};
+import type { CategoryInfo, TxRow } from "../../transactions/types";
 
 export default async function CategoryDetailPage({
   params,
@@ -66,7 +57,11 @@ export default async function CategoryDetailPage({
     const [{ data: txData }, { data: catData }] = await Promise.all([
       supabase
         .from("transactions")
-        .select("id, merchant_name, amount, date, is_pending, category_id")
+        .select(`
+          id, merchant_name, amount, date, is_pending, category_id, card_id,
+          category:categories(id, name, icon, color),
+          card:cards(institution_name, last_four)
+        `)
         .eq("couple_id", coupleId)
         .eq("category_id", categoryId)
         .gte("date", startDate)
@@ -74,29 +69,46 @@ export default async function CategoryDetailPage({
         .order("date", { ascending: false }),
       supabase.from("categories").select("id, name, icon, color").order("name"),
     ]);
-    transactions = (txData ?? []) as TxRow[];
+
+    const baseTxs = (txData ?? []) as unknown as Omit<TxRow, "splits">[];
+
+    // Fetch existing splits so TransactionSheet can pre-populate them
+    const splitsMap = new Map<string, TxRow["splits"]>();
+    if (baseTxs.length > 0) {
+      const txIds = baseTxs.map((t) => t.id);
+      const { data: splitData } = await supabase
+        .from("transaction_splits")
+        .select("id, transaction_id, category_id, amount, category:categories(id, name, icon, color)")
+        .in("transaction_id", txIds);
+
+      for (const s of (splitData ?? []) as (TxRow["splits"][number] & { transaction_id: string })[]) {
+        const arr = splitsMap.get(s.transaction_id) ?? [];
+        arr.push(s);
+        splitsMap.set(s.transaction_id, arr);
+      }
+    }
+
+    transactions = baseTxs.map((tx) => ({ ...tx, splits: splitsMap.get(tx.id) ?? [] }));
     allCategories = (catData ?? []) as CategoryInfo[];
   }
 
-  // Direct spending + any split amounts for this category in the period
-  // Sum all amounts — positive charges add, negative refunds subtract
+  // Net spending — positive charges add, negative refunds subtract
   const directSpent = transactions.reduce((s, tx) => s + tx.amount, 0);
 
+  // Also count any split amounts attributed to this category from these transactions
   let splitSpent = 0;
-  if (coupleId) {
+  if (coupleId && transactions.length > 0) {
     const txIds = transactions.map((t) => t.id);
-    if (txIds.length > 0) {
-      const { data: splits } = await supabase
-        .from("transaction_splits")
-        .select("amount")
-        .in("transaction_id", txIds)
-        .eq("category_id", categoryId)
-        .gt("amount", 0);
-      splitSpent = ((splits ?? []) as { amount: number }[]).reduce(
-        (s, sp) => s + sp.amount,
-        0
-      );
-    }
+    const { data: splits } = await supabase
+      .from("transaction_splits")
+      .select("amount")
+      .in("transaction_id", txIds)
+      .eq("category_id", categoryId)
+      .gt("amount", 0);
+    splitSpent = ((splits ?? []) as { amount: number }[]).reduce(
+      (s, sp) => s + sp.amount,
+      0
+    );
   }
 
   const spent = directSpent + splitSpent;

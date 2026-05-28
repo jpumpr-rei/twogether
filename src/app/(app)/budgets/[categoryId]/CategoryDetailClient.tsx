@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import EditSheet from "../EditSheet";
-import RecategorizeSheet from "./RecategorizeSheet";
+import TransactionSheet from "../../transactions/TransactionSheet";
 import {
   budgetPeriodLabel,
   budgetPeriodToSearch,
@@ -14,8 +14,7 @@ import {
   type BudgetPeriod,
 } from "@/lib/budgetPeriod";
 import type { CategoryRow, BudgetRow } from "../types";
-import type { CategoryInfo } from "../../transactions/types";
-import type { TxRow } from "./page";
+import type { CategoryInfo, TxRow } from "../../transactions/types";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
@@ -386,7 +385,7 @@ export default function CategoryDetailClient({
       )}
 
       {selectedTx && (
-        <RecategorizeSheet
+        <TransactionSheet
           tx={selectedTx}
           categories={allCategories}
           onClose={() => setSelectedTx(null)}
