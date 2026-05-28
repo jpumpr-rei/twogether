@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import EditSheet from "../EditSheet";
 import TransactionSheet from "../../transactions/TransactionSheet";
@@ -53,6 +53,7 @@ export default function CategoryDetailClient({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
+  const [search, setSearch] = useState("");
 
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -189,6 +190,18 @@ export default function CategoryDetailClient({
       setIsDeleting(false);
     }
   }
+
+  const filteredTransactions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return transactions;
+    return transactions.filter((tx) => {
+      const isPayment = tx.is_transfer && !tx.category;
+      const title = isPayment && tx.card
+        ? (tx.card.account_name ?? tx.card.institution_name)
+        : (tx.merchant_name ?? "");
+      return title.toLowerCase().includes(q);
+    });
+  }, [transactions, search]);
 
   const slot = { category, budget, spent };
 
@@ -366,13 +379,41 @@ export default function CategoryDetailClient({
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
             {periodLabel} transactions
           </p>
-          {transactions.length === 0 ? (
+
+          {/* Search field — only show when there are transactions to search */}
+          {transactions.length > 0 && (
+            <div className="relative mb-3">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-base pointer-events-none">
+                🔍
+              </span>
+              <input
+                type="text"
+                placeholder="Search transactions…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-white border border-gray-200 rounded-2xl pl-9 pr-9 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 shadow-sm"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 active:text-gray-600 text-lg leading-none"
+                  aria-label="Clear search"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          )}
+
+          {filteredTransactions.length === 0 ? (
             <div className="bg-white rounded-2xl p-6 text-center shadow-sm">
-              <p className="text-gray-400 text-sm">No transactions for this period.</p>
+              <p className="text-gray-400 text-sm">
+                {search.trim() ? "No transactions match your search." : "No transactions for this period."}
+              </p>
             </div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50 overflow-hidden">
-              {transactions.map((tx) => {
+              {filteredTransactions.map((tx) => {
                 const displayAmt = splitAmountOverrides[tx.id] ?? tx.amount;
                 const isSplit = tx.id in splitAmountOverrides;
                 const isCredit = displayAmt < 0;
