@@ -101,7 +101,7 @@ Guidelines:
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const stream = anthropic.messages.stream({
-      model: "claude-3-5-haiku-20241022",
+      model: "claude-3-5-haiku-latest",
       max_tokens: 1024,
       system: systemPrompt,
       messages,
