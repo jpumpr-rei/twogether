@@ -53,11 +53,15 @@ export default async function TransactionsPage({
          card:cards(institution_name, account_name, last_four)`
       )
       .eq("couple_id", coupleId)
-      .order("date", { ascending: false })
-      .limit(500);
+      .order("date", { ascending: false });
 
     if (startDate) txQuery = txQuery.gte("date", startDate);
     if (endDate) txQuery = txQuery.lte("date", endDate);
+
+    // Apply a limit only when a date range is active — a single month won't
+    // exceed 500 rows. For "All Time" we skip the limit entirely; the 90-day
+    // sync window is the natural cap so the result set stays manageable.
+    if (startDate || endDate) txQuery = txQuery.limit(500);
 
     const [{ data: txData }, { data: catData }, { data: cardData }] = await Promise.all([
       txQuery,
