@@ -50,7 +50,7 @@ export default async function TransactionsPage({
       .select(
         `id, merchant_name, amount, date, is_pending, is_transfer, category_id, card_id,
          category:categories(id, name, icon, color),
-         card:cards(institution_name, last_four)`
+         card:cards(institution_name, account_name, last_four)`
       )
       .eq("couple_id", coupleId)
       .order("date", { ascending: false })

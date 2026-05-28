@@ -378,7 +378,7 @@ export default function CategoryDetailClient({
                 const isCredit = displayAmt < 0;
                 const isPayment = tx.is_transfer && !tx.category;
                 const txDisplayTitle = isPayment && tx.card
-                  ? `${tx.card.institution_name}${tx.card.last_four ? ` ·· ${tx.card.last_four}` : ""}`
+                  ? tx.card.account_name ?? tx.card.institution_name
                   : tx.merchant_name ?? "Unknown merchant";
                 return (
                   <button

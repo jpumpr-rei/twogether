@@ -54,7 +54,7 @@ export default async function CategoryDetailPage({
   const TX_SELECT = `
     id, merchant_name, amount, date, is_pending, is_transfer, category_id, card_id,
     category:categories(id, name, icon, color),
-    card:cards(institution_name, last_four)
+    card:cards(institution_name, account_name, last_four)
   `;
 
   let transactions: TxRow[] = [];

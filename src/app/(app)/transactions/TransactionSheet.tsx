@@ -150,9 +150,10 @@ export default function TransactionSheet({
 
   // Payment transactions: is_transfer with no explicit category and no splits
   const isPayment = tx.is_transfer && !tx.category && tx.splits.length === 0;
-  // For payments, show the card name instead of the generic merchant name
+  // For payments, show the card's user-defined name (account_name) if set,
+  // otherwise fall back to the institution name from Plaid
   const displayTitle = isPayment && tx.card
-    ? `${tx.card.institution_name}${tx.card.last_four ? ` ·· ${tx.card.last_four}` : ""}`
+    ? tx.card.account_name ?? tx.card.institution_name
     : tx.merchant_name ?? "Unknown merchant";
 
   return (

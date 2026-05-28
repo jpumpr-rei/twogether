@@ -108,9 +108,10 @@ function TxListRow({
   const isCredit = tx.amount < 0;
   const displayCategory = hasSplits ? (tx.splits[0]?.category ?? null) : category;
   const isPayment = tx.is_transfer && !displayCategory;
-  // For payment transactions, show the card name instead of the generic bank merchant string
+  // For payment transactions, show the card's user-defined name (account_name) if set,
+  // otherwise fall back to the institution name from Plaid
   const displayTitle = isPayment && tx.card
-    ? `${tx.card.institution_name}${tx.card.last_four ? ` ·· ${tx.card.last_four}` : ""}`
+    ? tx.card.account_name ?? tx.card.institution_name
     : tx.merchant_name ?? "Unknown merchant";
   const iconBg = isPayment
     ? "#dbeafe"
