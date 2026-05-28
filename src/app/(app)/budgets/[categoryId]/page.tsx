@@ -51,35 +51,83 @@ export default async function CategoryDetailPage({
     budget = (data as BudgetRow | null) ?? null;
   }
 
+  const TX_SELECT = `
+    id, merchant_name, amount, date, is_pending, category_id, card_id,
+    category:categories(id, name, icon, color),
+    card:cards(institution_name, last_four)
+  `;
+
   let transactions: TxRow[] = [];
+  let splitAmountOverrides: Record<string, number> = {};
   let allCategories: CategoryInfo[] = [];
+
   if (coupleId) {
-    const [{ data: txData }, { data: catData }] = await Promise.all([
+    // Fetch direct transactions, all categories, and split rows for this category in parallel
+    const [{ data: txData }, { data: catData }, { data: splitLookup }] = await Promise.all([
+      // Direct transactions — category_id matches
       supabase
         .from("transactions")
-        .select(`
-          id, merchant_name, amount, date, is_pending, category_id, card_id,
-          category:categories(id, name, icon, color),
-          card:cards(institution_name, last_four)
-        `)
+        .select(TX_SELECT)
         .eq("couple_id", coupleId)
         .eq("category_id", categoryId)
         .gte("date", startDate)
         .lte("date", endDate)
         .order("date", { ascending: false }),
       supabase.from("categories").select("id, name, icon, color").order("name"),
+      // All split rows attributed to this category (no date filter — filter by parent tx date below)
+      supabase
+        .from("transaction_splits")
+        .select("transaction_id, amount")
+        .eq("category_id", categoryId),
     ]);
 
-    const baseTxs = (txData ?? []) as unknown as Omit<TxRow, "splits">[];
+    const directTxs = (txData ?? []) as unknown as Omit<TxRow, "splits">[];
+    const directTxIds = new Set(directTxs.map((t) => t.id));
 
-    // Fetch existing splits so TransactionSheet can pre-populate them
+    // Build map: parent tx id → split amount for this category
+    const splitsByTxId = new Map<string, number>();
+    for (const s of (splitLookup ?? []) as { transaction_id: string; amount: number }[]) {
+      splitsByTxId.set(s.transaction_id, s.amount);
+    }
+
+    // Fetch the parent transactions that were split into this category
+    // (they have category_id = null so the direct query missed them)
+    let splitParentTxs: Omit<TxRow, "splits">[] = [];
+    const splitParentIds = [...splitsByTxId.keys()].filter((id) => !directTxIds.has(id));
+
+    if (splitParentIds.length > 0) {
+      const { data: splitTxData } = await supabase
+        .from("transactions")
+        .select(TX_SELECT)
+        .eq("couple_id", coupleId)
+        .in("id", splitParentIds)
+        .gte("date", startDate)
+        .lte("date", endDate)
+        .order("date", { ascending: false });
+
+      splitParentTxs = (splitTxData ?? []) as unknown as Omit<TxRow, "splits">[];
+    }
+
+    // Merge and re-sort by date descending
+    const allBaseTxs = [...directTxs, ...splitParentTxs].sort((a, b) =>
+      b.date.localeCompare(a.date)
+    );
+
+    // Build splitAmountOverrides for the transactions we actually have in range
+    for (const tx of allBaseTxs) {
+      if (splitsByTxId.has(tx.id)) {
+        splitAmountOverrides[tx.id] = splitsByTxId.get(tx.id)!;
+      }
+    }
+
+    // Fetch all split rows for these transactions (for TransactionSheet pre-population)
+    const allTxIds = allBaseTxs.map((t) => t.id);
     const splitsMap = new Map<string, TxRow["splits"]>();
-    if (baseTxs.length > 0) {
-      const txIds = baseTxs.map((t) => t.id);
+    if (allTxIds.length > 0) {
       const { data: splitData } = await supabase
         .from("transaction_splits")
         .select("id, transaction_id, category_id, amount, category:categories(id, name, icon, color)")
-        .in("transaction_id", txIds);
+        .in("transaction_id", allTxIds);
 
       for (const s of (splitData ?? []) as (TxRow["splits"][number] & { transaction_id: string })[]) {
         const arr = splitsMap.get(s.transaction_id) ?? [];
@@ -88,30 +136,15 @@ export default async function CategoryDetailPage({
       }
     }
 
-    transactions = baseTxs.map((tx) => ({ ...tx, splits: splitsMap.get(tx.id) ?? [] }));
+    transactions = allBaseTxs.map((tx) => ({ ...tx, splits: splitsMap.get(tx.id) ?? [] }));
     allCategories = (catData ?? []) as CategoryInfo[];
   }
 
-  // Net spending — positive charges add, negative refunds subtract
-  const directSpent = transactions.reduce((s, tx) => s + tx.amount, 0);
-
-  // Also count any split amounts attributed to this category from these transactions
-  let splitSpent = 0;
-  if (coupleId && transactions.length > 0) {
-    const txIds = transactions.map((t) => t.id);
-    const { data: splits } = await supabase
-      .from("transaction_splits")
-      .select("amount")
-      .in("transaction_id", txIds)
-      .eq("category_id", categoryId)
-      .gt("amount", 0);
-    splitSpent = ((splits ?? []) as { amount: number }[]).reduce(
-      (s, sp) => s + sp.amount,
-      0
-    );
-  }
-
-  const spent = directSpent + splitSpent;
+  // Net spending — use the split amount for split transactions, full amount otherwise
+  const spent = transactions.reduce((s, tx) => {
+    const amt = splitAmountOverrides[tx.id] ?? tx.amount;
+    return s + amt;
+  }, 0);
 
   return (
     <CategoryDetailClient
@@ -121,6 +154,7 @@ export default async function CategoryDetailPage({
       allCategories={allCategories}
       spent={spent}
       activePeriod={activePeriod}
+      splitAmountOverrides={splitAmountOverrides}
     />
   );
 }

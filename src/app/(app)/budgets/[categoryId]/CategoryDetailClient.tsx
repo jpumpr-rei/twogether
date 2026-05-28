@@ -34,6 +34,7 @@ export default function CategoryDetailClient({
   allCategories,
   spent,
   activePeriod,
+  splitAmountOverrides = {},
 }: {
   category: CategoryRow;
   budget: BudgetRow | null;
@@ -41,6 +42,7 @@ export default function CategoryDetailClient({
   allCategories: CategoryInfo[];
   spent: number;
   activePeriod: BudgetPeriod;
+  splitAmountOverrides?: Record<string, number>;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -344,33 +346,39 @@ export default function CategoryDetailClient({
             </div>
           ) : (
             <div className="bg-white rounded-2xl shadow-sm divide-y divide-gray-50 overflow-hidden">
-              {transactions.map((tx) => (
-                <button
-                  key={tx.id}
-                  onClick={() => setSelectedTx(tx)}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-50 transition-colors"
-                >
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0"
-                    style={{ backgroundColor: iconBg }}
+              {transactions.map((tx) => {
+                const displayAmt = splitAmountOverrides[tx.id] ?? tx.amount;
+                const isSplit = tx.id in splitAmountOverrides;
+                const isCredit = displayAmt < 0;
+                return (
+                  <button
+                    key={tx.id}
+                    onClick={() => setSelectedTx(tx)}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-50 transition-colors"
                   >
-                    {category.icon ?? "📦"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 truncate text-sm">
-                      {tx.merchant_name ?? "Unknown merchant"}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {tx.date}
-                      {tx.is_pending && <span className="ml-1 text-orange-400">· Pending</span>}
-                    </p>
-                  </div>
-                  <span className="font-semibold text-gray-800 text-sm tabular-nums">
-                    ${tx.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                  <span className="text-gray-300 text-xs ml-1">›</span>
-                </button>
-              ))}
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0"
+                      style={{ backgroundColor: iconBg }}
+                    >
+                      {category.icon ?? "📦"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-900 truncate text-sm">
+                        {tx.merchant_name ?? "Unknown merchant"}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {tx.date}
+                        {tx.is_pending && <span className="ml-1 text-orange-400">· Pending</span>}
+                        {isSplit && <span className="ml-1 text-blue-400">· Split</span>}
+                      </p>
+                    </div>
+                    <span className={`font-semibold text-sm tabular-nums ${isCredit ? "text-green-500" : "text-gray-800"}`}>
+                      {isCredit ? "+" : ""}${Math.abs(displayAmt).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-gray-300 text-xs ml-1">›</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
