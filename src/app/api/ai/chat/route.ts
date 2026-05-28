@@ -6,6 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 // is often not enough for the Supabase queries + Anthropic first-token latency)
 export const maxDuration = 60;
 
+// Model is read from the AI_MODEL env var at runtime so it can be updated in
+// the Vercel dashboard without a code change or redeployment.
+const AI_MODEL = process.env.AI_MODEL ?? "claude-haiku-4-5-20251001";
+
 export async function POST(req: NextRequest) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "AI not configured" }, { status: 503 });
@@ -101,7 +105,7 @@ Guidelines:
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const stream = anthropic.messages.stream({
-      model: "claude-3-7-sonnet-20250219",
+      model: AI_MODEL,
       max_tokens: 1024,
       system: systemPrompt,
       messages,

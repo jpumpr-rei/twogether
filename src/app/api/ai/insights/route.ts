@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 
+// Model is read from the AI_MODEL env var at runtime so it can be updated in
+// the Vercel dashboard without a code change or redeployment.
+const AI_MODEL = process.env.AI_MODEL ?? "claude-haiku-4-5-20251001";
+
 export async function GET() {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ insights: [] });
@@ -90,7 +94,7 @@ Return ONLY valid JSON with no extra text: {"insights":["insight1","insight2","i
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await anthropic.messages.create({
-      model: "claude-3-7-sonnet-20250219",
+      model: AI_MODEL,
       max_tokens: 400,
       messages: [{ role: "user", content: prompt }],
     });
