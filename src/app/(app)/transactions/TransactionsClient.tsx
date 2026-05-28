@@ -108,6 +108,10 @@ function TxListRow({
   const isCredit = tx.amount < 0;
   const displayCategory = hasSplits ? (tx.splits[0]?.category ?? null) : category;
   const isPayment = tx.is_transfer && !displayCategory;
+  // For payment transactions, show the card name instead of the generic bank merchant string
+  const displayTitle = isPayment && tx.card
+    ? `${tx.card.institution_name}${tx.card.last_four ? ` ·· ${tx.card.last_four}` : ""}`
+    : tx.merchant_name ?? "Unknown merchant";
   const iconBg = isPayment
     ? "#dbeafe"
     : displayCategory?.color
@@ -187,7 +191,7 @@ function TxListRow({
 
         <div className="flex-1 min-w-0">
           <p className="font-medium text-gray-900 truncate text-sm">
-            {tx.merchant_name ?? "Unknown merchant"}
+            {displayTitle}
           </p>
           <p className="text-xs text-gray-400 truncate">
             {hasSplits ? (

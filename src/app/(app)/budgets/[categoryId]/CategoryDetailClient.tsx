@@ -377,6 +377,9 @@ export default function CategoryDetailClient({
                 const isSplit = tx.id in splitAmountOverrides;
                 const isCredit = displayAmt < 0;
                 const isPayment = tx.is_transfer && !tx.category;
+                const txDisplayTitle = isPayment && tx.card
+                  ? `${tx.card.institution_name}${tx.card.last_four ? ` ·· ${tx.card.last_four}` : ""}`
+                  : tx.merchant_name ?? "Unknown merchant";
                 return (
                   <button
                     key={tx.id}
@@ -391,7 +394,7 @@ export default function CategoryDetailClient({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate text-sm">
-                        {tx.merchant_name ?? "Unknown merchant"}
+                        {txDisplayTitle}
                       </p>
                       <p className="text-xs text-gray-400">
                         {isPayment ? (
