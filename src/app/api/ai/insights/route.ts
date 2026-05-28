@@ -90,7 +90,7 @@ Return ONLY valid JSON with no extra text: {"insights":["insight1","insight2","i
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response = await anthropic.messages.create({
-      model: "claude-3-5-haiku-latest",
+      model: "claude-3-7-sonnet-20250219",
       max_tokens: 400,
       messages: [{ role: "user", content: prompt }],
     });
