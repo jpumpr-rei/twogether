@@ -440,15 +440,19 @@ function BudgetRow({
 }) {
   const { category, budget, spent } = slot;
   const hasBudget = budget != null;
+  const hasSpend  = spent > 0;
 
   const displayAmount = hasBudget
     ? normalizedBudgetAmount(budget.amount, budget.period, viewType, rangeCount)
     : 0;
 
-  const pct     = hasBudget && displayAmount > 0 ? Math.min(100, (spent / displayAmount) * 100) : 0;
-  const isOver  = hasBudget && displayAmount > 0 && spent > displayAmount;
+  const pct      = hasBudget && displayAmount > 0 ? Math.min(100, (spent / displayAmount) * 100) : 0;
+  const isOver   = hasBudget && displayAmount > 0 && spent > displayAmount;
   const barColor = isOver ? "#f87171" : pct > 80 ? "#facc15" : "#fb923c";
   const iconBg   = category.color ? category.color + "22" : "#f3f4f6";
+
+  // A category with no budget but real spending: show as active, no bar, no budget amount
+  const spendOnly = !hasBudget && hasSpend;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
@@ -464,12 +468,17 @@ function BudgetRow({
             {category.icon ?? "📦"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className={`font-semibold truncate ${hasBudget ? "text-gray-900" : "text-gray-400"}`}>
+            <p className={`font-semibold truncate ${hasBudget || spendOnly ? "text-gray-900" : "text-gray-400"}`}>
               {category.name}
             </p>
             {hasBudget && (
               <p className="text-xs text-gray-400">
                 {viewType === "year" ? "annual" : budget.period}
+              </p>
+            )}
+            {spendOnly && (
+              <p className="text-xs text-gray-400">
+                ${spent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent
               </p>
             )}
           </div>

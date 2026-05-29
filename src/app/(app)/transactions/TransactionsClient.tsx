@@ -170,7 +170,7 @@ function TxListRow({
             }`}
             style={{ backgroundColor: iconBg }}
           >
-            {isPayment ? "💳" : displayCategory?.icon ?? "📦"}
+            {isPayment ? "🎆" : displayCategory?.icon ?? "📦"}
           </div>
 
           {/* Checkbox */}
