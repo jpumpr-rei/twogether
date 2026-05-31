@@ -51,10 +51,12 @@ export default async function CategoryDetailPage({
     budget = (data as BudgetRow | null) ?? null;
   }
 
+  // Splits embedded directly to avoid a separate .in() call that can exceed URL limits.
   const TX_SELECT = `
     id, merchant_name, amount, date, is_pending, is_transfer, category_id, card_id,
     category:categories(id, name, icon, color),
-    card:cards(institution_name, account_name, last_four)
+    card:cards(institution_name, account_name, last_four),
+    splits:transaction_splits(id, category_id, amount, category:categories(id, name, icon, color))
   `;
 
   let transactions: TxRow[] = [];
@@ -81,10 +83,13 @@ export default async function CategoryDetailPage({
         .eq("category_id", categoryId),
     ]);
 
-    const directTxs = (txData ?? []) as unknown as Omit<TxRow, "splits">[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const directTxs = (txData ?? []).map((tx: any) => ({ ...tx, splits: tx.splits ?? [] })) as TxRow[];
     const directTxIds = new Set(directTxs.map((t) => t.id));
 
     // Build map: parent tx id → split amount for this category
+    // (splitLookup only contains splits for THIS category, used to find parent tx IDs
+    //  and to compute the per-category spend amount for the progress bar)
     const splitsByTxId = new Map<string, number>();
     for (const s of (splitLookup ?? []) as { transaction_id: string; amount: number }[]) {
       splitsByTxId.set(s.transaction_id, s.amount);
@@ -92,7 +97,7 @@ export default async function CategoryDetailPage({
 
     // Fetch the parent transactions that were split into this category
     // (they have category_id = null so the direct query missed them)
-    let splitParentTxs: Omit<TxRow, "splits">[] = [];
+    let splitParentTxs: TxRow[] = [];
     const splitParentIds = [...splitsByTxId.keys()].filter((id) => !directTxIds.has(id));
 
     if (splitParentIds.length > 0) {
@@ -105,7 +110,8 @@ export default async function CategoryDetailPage({
         .lte("date", endDate)
         .order("date", { ascending: false });
 
-      splitParentTxs = (splitTxData ?? []) as unknown as Omit<TxRow, "splits">[];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      splitParentTxs = (splitTxData ?? []).map((tx: any) => ({ ...tx, splits: tx.splits ?? [] })) as TxRow[];
     }
 
     // Merge and re-sort by date descending
@@ -113,30 +119,15 @@ export default async function CategoryDetailPage({
       b.date.localeCompare(a.date)
     );
 
-    // Build splitAmountOverrides for the transactions we actually have in range
+    // Build splitAmountOverrides — for split-parent transactions, show only this
+    // category's portion of the total amount in the list and progress bar.
     for (const tx of allBaseTxs) {
       if (splitsByTxId.has(tx.id)) {
         splitAmountOverrides[tx.id] = splitsByTxId.get(tx.id)!;
       }
     }
 
-    // Fetch all split rows for these transactions (for TransactionSheet pre-population)
-    const allTxIds = allBaseTxs.map((t) => t.id);
-    const splitsMap = new Map<string, TxRow["splits"]>();
-    if (allTxIds.length > 0) {
-      const { data: splitData } = await supabase
-        .from("transaction_splits")
-        .select("id, transaction_id, category_id, amount, category:categories(id, name, icon, color)")
-        .in("transaction_id", allTxIds);
-
-      for (const s of (splitData ?? []) as (TxRow["splits"][number] & { transaction_id: string })[]) {
-        const arr = splitsMap.get(s.transaction_id) ?? [];
-        arr.push(s);
-        splitsMap.set(s.transaction_id, arr);
-      }
-    }
-
-    transactions = allBaseTxs.map((tx) => ({ ...tx, splits: splitsMap.get(tx.id) ?? [] }));
+    transactions = allBaseTxs;
     allCategories = (catData ?? []) as CategoryInfo[];
   }
 

@@ -45,12 +45,16 @@ export default async function TransactionsPage({
   let cards: CardInfo[] = [];
 
   if (coupleId) {
+    // Embed splits directly in the transaction query to avoid a separate
+    // .in("transaction_id", [...]) call that can exceed URL length limits
+    // when there are many transactions (All Time with 500+ rows).
     let txQuery = supabase
       .from("transactions")
       .select(
         `id, merchant_name, amount, date, is_pending, is_transfer, category_id, card_id,
          category:categories(id, name, icon, color),
-         card:cards(institution_name, account_name, last_four)`
+         card:cards(institution_name, account_name, last_four),
+         splits:transaction_splits(id, category_id, amount, category:categories(id, name, icon, color))`
       )
       .eq("couple_id", coupleId)
       .order("date", { ascending: false });
@@ -58,9 +62,7 @@ export default async function TransactionsPage({
     if (startDate) txQuery = txQuery.gte("date", startDate);
     if (endDate) txQuery = txQuery.lte("date", endDate);
 
-    // Apply a limit only when a date range is active — a single month won't
-    // exceed 500 rows. For "All Time" we skip the limit entirely; the 90-day
-    // sync window is the natural cap so the result set stays manageable.
+    // Cap date-filtered views; All Time is naturally bounded by the 90-day sync window.
     if (startDate || endDate) txQuery = txQuery.limit(500);
 
     const [{ data: txData }, { data: catData }, { data: cardData }] = await Promise.all([
@@ -74,24 +76,8 @@ export default async function TransactionsPage({
         .order("institution_name"),
     ]);
 
-    const baseTxs = (txData ?? []) as unknown as Omit<TxRow, "splits">[];
-
-    let splitsMap = new Map<string, TxRow["splits"]>();
-    if (baseTxs.length > 0) {
-      const txIds = baseTxs.map((t) => t.id);
-      const { data: splitData } = await supabase
-        .from("transaction_splits")
-        .select("id, transaction_id, category_id, amount, category:categories(id, name, icon, color)")
-        .in("transaction_id", txIds);
-
-      for (const s of (splitData ?? []) as (TxRow["splits"][number] & { transaction_id: string })[]) {
-        const arr = splitsMap.get(s.transaction_id) ?? [];
-        arr.push(s);
-        splitsMap.set(s.transaction_id, arr);
-      }
-    }
-
-    transactions = baseTxs.map((tx) => ({ ...tx, splits: splitsMap.get(tx.id) ?? [] }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    transactions = (txData ?? []).map((tx: any) => ({ ...tx, splits: tx.splits ?? [] })) as TxRow[];
     categories = (catData ?? []) as CategoryInfo[];
     cards = (cardData ?? []) as CardInfo[];
   }
