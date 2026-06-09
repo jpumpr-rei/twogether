@@ -93,28 +93,29 @@ export async function syncCouple(
           seenPlaidIds.add(tx.transaction_id);
           const cardId = accountToCard.get(tx.account_id) ?? null;
           const isManual = manualIds.has(tx.transaction_id);
-          const categoryId = isManual
-            ? undefined
-            : bestCategory(
-                {
-                  merchant_name: tx.merchant_name ?? tx.name,
-                  personal_finance_category: tx.personal_finance_category,
-                },
-                categoryMap
-              );
 
-          // Credit card payments appear as LOAN_PAYMENTS on the checking
-          // account side and TRANSFER_IN on the credit card side (Plaid
-          // treats the card receiving payment as an inbound transfer).
-          // Flag both so all payment rows show as "Payment" not "Uncategorized".
-          // Fallback: some credit-card-side payment receipts (e.g. "Payment Thank You-Mobile")
-          // come back with no personal_finance_category from Plaid. Catch those by
-          // name — only when they would otherwise be uncategorized (categoryId undefined).
+          // Detect transfers BEFORE categorizing — payments must never get a category.
+          // Credit card payments appear as LOAN_PAYMENTS on the checking side and
+          // TRANSFER_IN on the credit card side.
           const plaidPrimary = tx.personal_finance_category?.primary ?? "";
           const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
+
+          const categoryId =
+            isManual || isTransferByCategory
+              ? undefined
+              : bestCategory(
+                  {
+                    merchant_name: tx.merchant_name ?? tx.name,
+                    personal_finance_category: tx.personal_finance_category,
+                  },
+                  categoryMap
+                );
+
+          // Fallback: catch payment receipts Plaid didn't signal (e.g. "Payment Thank You-Mobile")
+          // — only when bestCategory also found nothing.
           const isTransferByName =
             !isTransferByCategory &&
-            categoryId === undefined &&
+            !categoryId &&
             /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
           const isTransfer = isTransferByCategory || isTransferByName;
 

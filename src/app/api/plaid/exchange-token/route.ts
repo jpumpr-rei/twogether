@@ -119,10 +119,23 @@ async function syncRecentTransactions(
 
   for (const tx of txs) {
     const cardId = accountToCard.get(tx.account_id) ?? null;
-    const categoryId = bestCategory(
-      { merchant_name: tx.merchant_name ?? tx.name, personal_finance_category: tx.personal_finance_category },
-      categoryMap
-    );
+
+    const plaidPrimary = tx.personal_finance_category?.primary ?? "";
+    const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
+
+    const categoryId = isTransferByCategory
+      ? null
+      : bestCategory(
+          { merchant_name: tx.merchant_name ?? tx.name, personal_finance_category: tx.personal_finance_category },
+          categoryMap
+        );
+
+    const isTransferByName =
+      !isTransferByCategory &&
+      !categoryId &&
+      /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
+
+    const isTransfer = isTransferByCategory || isTransferByName;
 
     await supabase.from("transactions").upsert(
       {
@@ -134,6 +147,7 @@ async function syncRecentTransactions(
         currency: tx.iso_currency_code ?? "USD",
         date: tx.date,
         is_pending: tx.pending,
+        is_transfer: isTransfer,
         category_id: categoryId,
       },
       { onConflict: "plaid_transaction_id" }
