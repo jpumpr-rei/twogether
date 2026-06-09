@@ -1,8 +1,35 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import BudgetsClient from "./BudgetsClient";
-import { parseBudgetPeriod, budgetPeriodBounds } from "@/lib/budgetPeriod";
+import { parseBudgetPeriod, budgetPeriodBounds, comparisonBounds } from "@/lib/budgetPeriod";
 import type { CategoryRow, BudgetRow, BudgetSlot } from "./types";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function fetchTotalSpent(supabase: any, coupleId: string, startDate: string, endDate: string): Promise<number> {
+  const { data: txs } = await supabase
+    .from("transactions")
+    .select("id, category_id, amount")
+    .eq("couple_id", coupleId)
+    .gte("date", startDate)
+    .lte("date", endDate);
+
+  const txList = (txs ?? []) as { id: string; category_id: string | null; amount: number }[];
+  let total = 0;
+  for (const tx of txList) {
+    if (tx.category_id) total += tx.amount;
+  }
+
+  const txIds = txList.map((t) => t.id);
+  if (txIds.length > 0) {
+    const { data: splits } = await supabase
+      .from("transaction_splits")
+      .select("amount")
+      .in("transaction_id", txIds)
+      .gt("amount", 0);
+    for (const s of (splits ?? []) as { amount: number }[]) total += s.amount;
+  }
+  return total;
+}
 
 export default async function BudgetsPage({
   searchParams,
@@ -49,8 +76,12 @@ export default async function BudgetsPage({
   const categories = (categoriesResult.data ?? []) as CategoryRow[];
   const budgets = (budgetsResult.data ?? []) as BudgetRow[];
 
-  // Spending for the selected period
+  // Spending for the selected period (per category, for slot assembly)
   const spending: Record<string, number> = {};
+  let totalSpent = 0;
+  let prevSpent: number | null = null;
+  let yoySpent: number | null = null;
+
   if (coupleId) {
     const { data: txs } = await supabase
       .from("transactions")
@@ -80,6 +111,17 @@ export default async function BudgetsPage({
         }
       }
     }
+
+    totalSpent = Object.values(spending).reduce((s, v) => s + v, 0);
+
+    // Fetch comparison totals for variance display
+    const { prevBounds, yoyBounds } = comparisonBounds(activePeriod);
+    const [prev, yoy] = await Promise.all([
+      prevBounds ? fetchTotalSpent(supabase, coupleId, prevBounds.startDate, prevBounds.endDate) : Promise.resolve(null),
+      yoyBounds  ? fetchTotalSpent(supabase, coupleId, yoyBounds.startDate,  yoyBounds.endDate)  : Promise.resolve(null),
+    ]);
+    prevSpent = prev;
+    yoySpent  = yoy;
   }
 
   const budgetMap = new Map(budgets.map((b) => [b.category_id ?? "", b]));
@@ -96,5 +138,13 @@ export default async function BudgetsPage({
       return a.category.name.localeCompare(b.category.name);
     });
 
-  return <BudgetsClient slots={slots} activePeriod={activePeriod} />;
+  return (
+    <BudgetsClient
+      slots={slots}
+      activePeriod={activePeriod}
+      totalSpent={totalSpent}
+      prevSpent={prevSpent}
+      yoySpent={yoySpent}
+    />
+  );
 }

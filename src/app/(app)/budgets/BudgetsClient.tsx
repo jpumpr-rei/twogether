@@ -28,9 +28,15 @@ function fmtDate(d: Date): string {
 export default function BudgetsClient({
   slots,
   activePeriod,
+  totalSpent,
+  prevSpent,
+  yoySpent,
 }: {
   slots: BudgetSlot[];
   activePeriod: BudgetPeriod;
+  totalSpent: number;
+  prevSpent: number | null;
+  yoySpent: number | null;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -261,11 +267,34 @@ export default function BudgetsClient({
         </div>
       )}
 
-      {/* Total budget */}
-      <p className="text-3xl font-bold text-gray-900 mb-6 text-center">
-        ${totalBudget.toLocaleString("en-US", { maximumFractionDigits: 0 })}
-        {suffix && <span className="text-base font-normal text-gray-400"> {suffix}</span>}
-      </p>
+      {/* Total summary: spent + budgeted + variance */}
+      <div className="text-center mb-6">
+        <div className="flex items-baseline justify-center gap-1.5">
+          <span className="text-3xl font-bold text-gray-900">
+            ${totalSpent.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+          </span>
+          <span className="text-sm text-gray-400">spent</span>
+        </div>
+        {totalBudget > 0 && (
+          <p className="text-sm text-gray-400 mt-0.5">
+            of ${totalBudget.toLocaleString("en-US", { maximumFractionDigits: 0 })} budgeted
+            {suffix ? ` ${suffix}` : ""}
+          </p>
+        )}
+        {(prevSpent !== null || yoySpent !== null) && (() => {
+          const { prevLabel, yoyLabel } = varianceLabels(activePeriod);
+          return (
+            <div className="flex justify-center gap-2 mt-3 flex-wrap">
+              {prevSpent !== null && (
+                <VarianceChip current={totalSpent} prev={prevSpent} label={prevLabel} />
+              )}
+              {yoySpent !== null && yoyLabel && (
+                <VarianceChip current={totalSpent} prev={yoySpent} label={yoyLabel} />
+              )}
+            </div>
+          );
+        })()}
+      </div>
 
       <div className="space-y-2">
         {slots.map((slot) => (
@@ -300,6 +329,45 @@ export default function BudgetsClient({
         />
       )}
     </div>
+  );
+}
+
+// ── Variance helpers ─────────────────────────────────────────────────────────
+
+function varianceLabels(period: BudgetPeriod): { prevLabel: string; yoyLabel: string | null } {
+  if (period.type === "month") {
+    const [y, m] = period.month.split("-").map(Number);
+    const prevD = new Date(y, m - 2, 1);
+    const pY = prevD.getFullYear(), pM = prevD.getMonth(); // 0-indexed for MONTHS[]
+    const prevLabel = pY !== y
+      ? `${MONTHS[pM].slice(0, 3)} '${String(pY).slice(2)}`
+      : MONTHS[pM].slice(0, 3);
+    const yoyLabel = `${MONTHS[m - 1].slice(0, 3)} '${String(y - 1).slice(2)}`;
+    return { prevLabel, yoyLabel };
+  }
+  if (period.type === "year") {
+    return { prevLabel: String(period.year - 1), yoyLabel: null };
+  }
+  return { prevLabel: "prev period", yoyLabel: "last year" };
+}
+
+function VarianceChip({ current, prev, label }: { current: number; prev: number; label: string }) {
+  if (prev === 0 && current === 0) return null;
+  if (prev === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-3 py-1 text-xs font-medium text-gray-500">
+        New · {label}
+      </span>
+    );
+  }
+  const pct = ((current - prev) / prev) * 100;
+  const up = pct >= 0;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${
+      up ? "bg-orange-50 text-orange-500" : "bg-green-50 text-green-600"
+    }`}>
+      {up ? "↑" : "↓"} {Math.abs(pct).toFixed(0)}% vs {label}
+    </span>
   );
 }
 

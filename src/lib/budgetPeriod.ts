@@ -111,6 +111,59 @@ export function nextPeriod(period: BudgetPeriod): BudgetPeriod {
 }
 
 /**
+ * Returns date bounds for the two comparison periods used for variance display.
+ *
+ * Monthly  → prev month  +  same month last year
+ * Yearly   → prev year   +  null (prev year IS the YoY, no second comparison)
+ * Range    → prev equivalent window  +  same window one year ago
+ */
+export function comparisonBounds(period: BudgetPeriod): {
+  prevBounds: { startDate: string; endDate: string } | null;
+  yoyBounds:  { startDate: string; endDate: string } | null;
+} {
+  function daysInMonth(y: number, m: number) { return new Date(y, m, 0).getDate(); }
+
+  if (period.type === "month") {
+    const [y, m] = period.month.split("-").map(Number);
+    const prevD = new Date(y, m - 2, 1);
+    const pY = prevD.getFullYear(), pM = prevD.getMonth() + 1;
+    const lyY = y - 1;
+    return {
+      prevBounds: {
+        startDate: `${pY}-${String(pM).padStart(2,"0")}-01`,
+        endDate:   `${pY}-${String(pM).padStart(2,"0")}-${String(daysInMonth(pY, pM)).padStart(2,"0")}`,
+      },
+      yoyBounds: {
+        startDate: `${lyY}-${String(m).padStart(2,"0")}-01`,
+        endDate:   `${lyY}-${String(m).padStart(2,"0")}-${String(daysInMonth(lyY, m)).padStart(2,"0")}`,
+      },
+    };
+  }
+
+  if (period.type === "year") {
+    const py = period.year - 1;
+    return {
+      prevBounds: { startDate: `${py}-01-01`, endDate: `${py}-12-31` },
+      yoyBounds: null,
+    };
+  }
+
+  // Range — shift back by the same number of days, and same window last year
+  const fromMs = new Date(period.from + "T00:00:00").getTime();
+  const toMs   = new Date(period.to   + "T00:00:00").getTime();
+  const days   = Math.round((toMs - fromMs) / 86_400_000) + 1;
+  const prevTo   = new Date(fromMs - 86_400_000);
+  const prevFrom = new Date(prevTo.getTime() - (days - 1) * 86_400_000);
+  return {
+    prevBounds: { startDate: toDateStr(prevFrom), endDate: toDateStr(prevTo) },
+    yoyBounds: {
+      startDate: `${parseInt(period.from) - 1}${period.from.slice(4)}`,
+      endDate:   `${parseInt(period.to)   - 1}${period.to.slice(4)}`,
+    },
+  };
+}
+
+/**
  * Normalize a stored budget amount to the view's time scale.
  *
  * Range view pro-rates monthly budget proportionally:
