@@ -100,24 +100,31 @@ export async function syncCouple(
           const plaidPrimary = tx.personal_finance_category?.primary ?? "";
           const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
 
-          const categoryId =
-            isManual || isTransferByCategory
-              ? undefined
-              : bestCategory(
-                  {
-                    merchant_name: tx.merchant_name ?? tx.name,
-                    personal_finance_category: tx.personal_finance_category,
-                  },
-                  categoryMap
-                );
+          // Auto-categorize only when not manually set and Plaid didn't signal a transfer
+          const autoCategory = isManual || isTransferByCategory
+            ? null
+            : bestCategory(
+                {
+                  merchant_name: tx.merchant_name ?? tx.name,
+                  personal_finance_category: tx.personal_finance_category,
+                },
+                categoryMap
+              );
 
           // Fallback: catch payment receipts Plaid didn't signal (e.g. "Payment Thank You-Mobile")
           // — only when bestCategory also found nothing.
           const isTransferByName =
             !isTransferByCategory &&
-            !categoryId &&
+            !autoCategory &&
             /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
           const isTransfer = isTransferByCategory || isTransferByName;
+
+          // For transfers: always clear category_id so stale values (e.g. a previously
+          // mis-set Gas) are wiped. For manual rows: omit category_id entirely so the
+          // user's choice is never overwritten.
+          const categoryField = isManual
+            ? {}
+            : { category_id: isTransfer ? null : autoCategory };
 
           await supabase.from("transactions").upsert(
             {
@@ -130,7 +137,7 @@ export async function syncCouple(
               date: tx.date,
               is_pending: tx.pending,
               is_transfer: isTransfer,
-              ...(categoryId !== undefined && { category_id: categoryId }),
+              ...categoryField,
             },
             { onConflict: "plaid_transaction_id" }
           );
