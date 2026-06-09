@@ -19,8 +19,14 @@ export async function POST() {
 
   const { synced, errors } = await syncCouple(supabase, profile.couple_id);
 
-  return NextResponse.json({
-    synced,
-    errors: errors.length > 0 ? errors : undefined,
-  });
+  if (errors.length > 0) {
+    // Surface the first error message to the client so the UI can display it.
+    // Use 502 so SyncButton's !res.ok branch fires.
+    return NextResponse.json(
+      { error: errors[0], synced },
+      { status: 502 }
+    );
+  }
+
+  return NextResponse.json({ synced });
 }

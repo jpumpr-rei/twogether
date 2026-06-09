@@ -1,6 +1,12 @@
 /**
  * Core per-couple sync logic — shared between the user-triggered route
  * and the background cron route.
+ *
+ * Uses Plaid's transactionsSync (cursor-based) instead of transactionsGet
+ * so each run only fetches the delta since the last sync, not the full 90-day
+ * window. The cursor is persisted on every card row for that Plaid item.
+ * First sync (no cursor) fetches ~24 months of history; subsequent syncs
+ * are incremental.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -13,16 +19,14 @@ export async function syncCouple(
   supabase: AnySupabase,
   coupleId: string
 ): Promise<{ synced: number; errors: string[] }> {
-  // Fetch connected cards
   const { data: cards } = await supabase
     .from("cards")
-    .select("id, plaid_item_id, plaid_access_token, plaid_account_id")
+    .select("id, plaid_item_id, plaid_access_token, plaid_account_id, plaid_sync_cursor")
     .eq("couple_id", coupleId)
     .not("plaid_access_token", "is", null);
 
   if (!cards?.length) return { synced: 0, errors: [] };
 
-  // Category name → id map for auto-categorisation
   const { data: categories } = await supabase
     .from("categories")
     .select("id, name");
@@ -31,26 +35,6 @@ export async function syncCouple(
     categoryMap.set((cat.name as string).toLowerCase(), cat.id as string);
   }
 
-  // Group cards by Plaid item (one access token can cover multiple accounts)
-  const itemMap = new Map<
-    string,
-    { accessToken: string; accountToCard: Map<string, string> }
-  >();
-  for (const card of cards) {
-    if (!card.plaid_item_id || !card.plaid_access_token) continue;
-    if (!itemMap.has(card.plaid_item_id)) {
-      itemMap.set(card.plaid_item_id, {
-        accessToken: card.plaid_access_token,
-        accountToCard: new Map(),
-      });
-    }
-    if (card.plaid_account_id) {
-      itemMap.get(card.plaid_item_id)!.accountToCard.set(card.plaid_account_id, card.id);
-    }
-  }
-
-  // Fetch plaid_transaction_ids that were manually categorised so we never
-  // overwrite the user's choice during sync.
   const { data: manualRows } = await supabase
     .from("transactions")
     .select("plaid_transaction_id")
@@ -62,45 +46,51 @@ export async function syncCouple(
     (manualRows ?? []).map((r: { plaid_transaction_id: string }) => r.plaid_transaction_id)
   );
 
-  const endDate = new Date().toISOString().split("T")[0];
-  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
+  // Group cards by Plaid item (one access token can cover multiple accounts).
+  // The cursor is per item — read from the first card found for each item.
+  const itemMap = new Map<
+    string,
+    { accessToken: string; accountToCard: Map<string, string>; cursor: string | null }
+  >();
+  for (const card of cards) {
+    if (!card.plaid_item_id || !card.plaid_access_token) continue;
+    if (!itemMap.has(card.plaid_item_id)) {
+      itemMap.set(card.plaid_item_id, {
+        accessToken: card.plaid_access_token,
+        accountToCard: new Map(),
+        cursor: card.plaid_sync_cursor ?? null,
+      });
+    }
+    if (card.plaid_account_id) {
+      itemMap.get(card.plaid_item_id)!.accountToCard.set(card.plaid_account_id, card.id);
+    }
+  }
 
   let totalSynced = 0;
   const errors: string[] = [];
 
-  for (const [itemId, { accessToken, accountToCard }] of itemMap) {
+  for (const [itemId, { accessToken, accountToCard, cursor }] of itemMap) {
     try {
-      let offset = 0;
-      let total = 1;
-      // Track every plaid_transaction_id Plaid returns this sync so we can
-      // clean up stale pending rows afterward.
-      const seenPlaidIds = new Set<string>();
+      let nextCursor: string | undefined = cursor ?? undefined;
+      let hasMore = true;
+      let itemSynced = 0;
 
-      while (offset < total) {
-        const txResponse = await plaidClient.transactionsGet({
+      while (hasMore) {
+        const response = await plaidClient.transactionsSync({
           access_token: accessToken,
-          start_date: startDate,
-          end_date: endDate,
-          options: { count: 500, offset },
+          ...(nextCursor ? { cursor: nextCursor } : {}),
+          count: 500,
         });
 
-        total = txResponse.data.total_transactions;
-        const txs = txResponse.data.transactions;
+        const { added, modified, removed, next_cursor, has_more } = response.data;
 
-        for (const tx of txs) {
-          seenPlaidIds.add(tx.transaction_id);
+        for (const tx of [...added, ...modified]) {
           const cardId = accountToCard.get(tx.account_id) ?? null;
           const isManual = manualIds.has(tx.transaction_id);
 
-          // Detect transfers BEFORE categorizing — payments must never get a category.
-          // Credit card payments appear as LOAN_PAYMENTS on the checking side and
-          // TRANSFER_IN on the credit card side.
           const plaidPrimary = tx.personal_finance_category?.primary ?? "";
           const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
 
-          // Auto-categorize only when not manually set and Plaid didn't signal a transfer
           const autoCategory = isManual || isTransferByCategory
             ? null
             : bestCategory(
@@ -111,17 +101,12 @@ export async function syncCouple(
                 categoryMap
               );
 
-          // Fallback: catch payment receipts Plaid didn't signal (e.g. "Payment Thank You-Mobile")
-          // — only when bestCategory also found nothing.
           const isTransferByName =
             !isTransferByCategory &&
             !autoCategory &&
             /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
           const isTransfer = isTransferByCategory || isTransferByName;
 
-          // For transfers: always clear category_id so stale values (e.g. a previously
-          // mis-set Gas) are wiped. For manual rows: omit category_id entirely so the
-          // user's choice is never overwritten.
           const categoryField = isManual
             ? {}
             : { category_id: isTransfer ? null : autoCategory };
@@ -143,35 +128,46 @@ export async function syncCouple(
           );
         }
 
-        totalSynced += txs.length;
-        offset += txs.length;
-        if (txs.length === 0) break;
+        // Plaid reports removed transactions explicitly (e.g. when a pending
+        // transaction clears — it retires the pending ID and creates a new one).
+        if (removed.length > 0) {
+          const removedIds = removed.map((r: { transaction_id: string }) => r.transaction_id);
+          await supabase
+            .from("transactions")
+            .delete()
+            .eq("couple_id", coupleId)
+            .in("plaid_transaction_id", removedIds);
+        }
+
+        itemSynced += added.length + modified.length;
+        nextCursor = next_cursor;
+        hasMore = has_more;
       }
 
-      // Remove ghost pending rows: when a pending transaction clears, Plaid
-      // retires its transaction_id and creates a new one for the settled record.
-      // The old pending row never gets updated via upsert — it just silently
-      // disappears from Plaid's responses. Deleting it here keeps the UI clean.
-      // We only touch is_pending = true rows so settled history is never affected.
-      if (seenPlaidIds.size > 0) {
-        const cardIds = [...accountToCard.values()];
-        const idList = [...seenPlaidIds].join(",");
-        await supabase
-          .from("transactions")
-          .delete()
-          .eq("couple_id", coupleId)
-          .in("card_id", cardIds)
-          .eq("is_pending", true)
-          .not("plaid_transaction_id", "is", null)
-          .not("plaid_transaction_id", "in", `(${idList})`);
-      }
+      // Write the cursor to every card row for this item so the next sync
+      // resumes from the right position regardless of which card is read first.
+      await supabase
+        .from("cards")
+        .update({ plaid_sync_cursor: nextCursor })
+        .eq("couple_id", coupleId)
+        .eq("plaid_item_id", itemId);
+
+      totalSynced += itemSynced;
     } catch (err) {
       console.error(`Sync failed for item ${itemId}:`, err);
-      errors.push(itemId);
+      // Extract the human-readable message from a Plaid API error if present.
+      // Plaid errors arrive as Axios response errors with a structured body.
+      type PlaidErrBody = { display_message?: string; error_message?: string; error_code?: string };
+      const body = (err as { response?: { data?: PlaidErrBody } })?.response?.data;
+      const message =
+        body?.display_message ||
+        body?.error_message ||
+        (body?.error_code ? `Plaid error: ${body.error_code}` : null) ||
+        "Sync failed — check your connection";
+      errors.push(message);
     }
   }
 
-  // Stamp the couple with the sync time
   await supabase
     .from("couples")
     .update({ last_synced_at: new Date().toISOString() })
