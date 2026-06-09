@@ -131,6 +131,7 @@ export interface Database {
           date: string;
           note: string | null;
           is_pending: boolean;
+          is_transfer: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -146,6 +147,7 @@ export interface Database {
           date: string;
           note?: string | null;
           is_pending?: boolean;
+          is_transfer?: boolean;
         };
         Update: {
           card_id?: string | null;
@@ -156,6 +158,7 @@ export interface Database {
           date?: string;
           note?: string | null;
           is_pending?: boolean;
+          is_transfer?: boolean;
         };
         Relationships: [];
       };
