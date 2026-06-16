@@ -37,14 +37,20 @@ export async function syncCouple(
 
   const { data: manualRows } = await supabase
     .from("transactions")
-    .select("plaid_transaction_id")
+    .select("plaid_transaction_id, category_id, is_transfer")
     .eq("couple_id", coupleId)
     .eq("category_manually_set", true)
     .not("plaid_transaction_id", "is", null);
 
-  const manualIds = new Set<string>(
-    (manualRows ?? []).map((r: { plaid_transaction_id: string }) => r.plaid_transaction_id)
+  // Map plaid_transaction_id → manual overrides so we can inherit them when a
+  // pending transaction settles and Plaid issues a new transaction_id for it.
+  const manualMap = new Map<string, { category_id: string | null; is_transfer: boolean }>(
+    (manualRows ?? []).map((r: { plaid_transaction_id: string; category_id: string | null; is_transfer: boolean }) => [
+      r.plaid_transaction_id,
+      { category_id: r.category_id, is_transfer: r.is_transfer },
+    ])
   );
+  const manualIds = new Set<string>(manualMap.keys());
 
   // Group cards by Plaid item (one access token can cover multiple accounts).
   // The cursor is per item — read from the first card found for each item.
@@ -87,11 +93,17 @@ export async function syncCouple(
         for (const tx of [...added, ...modified]) {
           const cardId = accountToCard.get(tx.account_id) ?? null;
           const isManual = manualIds.has(tx.transaction_id);
+          // When a pending tx settles, Plaid issues a new transaction_id and sets
+          // pending_transaction_id to the retired pending ID. If the user manually
+          // categorized the pending version, inherit those settings on the settled row.
+          const pendingManual = !isManual && tx.pending_transaction_id
+            ? manualMap.get(tx.pending_transaction_id)
+            : undefined;
 
           const plaidPrimary = tx.personal_finance_category?.primary ?? "";
           const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
 
-          const autoCategory = isManual || isTransferByCategory
+          const autoCategory = isManual || pendingManual || isTransferByCategory
             ? null
             : bestCategory(
                 {
@@ -107,9 +119,20 @@ export async function syncCouple(
             /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
           const isTransfer = isTransferByCategory || isTransferByName;
 
+          // category_id: inherit from pending manual, skip for existing manual, auto otherwise
           const categoryField = isManual
             ? {}
+            : pendingManual
+            ? { category_id: pendingManual.category_id }
             : { category_id: isTransfer ? null : autoCategory };
+
+          // is_transfer + category_manually_set: inherit from pending, preserve for existing
+          // manual (don't let Plaid overwrite a user's "Mark as payment" flag), auto otherwise
+          const transferField = pendingManual
+            ? { is_transfer: pendingManual.is_transfer, category_manually_set: true }
+            : isManual
+            ? {}
+            : { is_transfer: isTransfer };
 
           await supabase.from("transactions").upsert(
             {
@@ -121,7 +144,7 @@ export async function syncCouple(
               currency: tx.iso_currency_code ?? "USD",
               date: tx.date,
               is_pending: tx.pending,
-              is_transfer: isTransfer,
+              ...transferField,
               ...categoryField,
             },
             { onConflict: "plaid_transaction_id" }
