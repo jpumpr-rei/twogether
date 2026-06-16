@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { recategorize, saveSplits } from "./actions";
+import { recategorize, saveSplits, markAsPayment } from "./actions";
 import type { TxRow, CategoryInfo } from "./types";
 
 type SplitState = { category_id: string | null; amount: string };
@@ -182,14 +182,33 @@ export default function TransactionSheet({
         {/* ── Single category mode ── */}
         {mode === "single" && (
           <>
-            {/* Payment transactions: no category / split controls, just close */}
+            {/* Payment transactions: show unmark option */}
             {isPayment ? (
-              <button
-                onClick={onClose}
-                className="w-full bg-gray-100 text-gray-700 font-semibold rounded-xl py-3.5 text-sm hover:bg-gray-200 active:bg-gray-200 mb-safe"
-              >
-                Close
-              </button>
+              <>
+                <div className="bg-blue-50 rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
+                  <span className="text-lg">💳</span>
+                  <p className="text-sm text-blue-700 font-medium flex-1">
+                    Marked as a payment — not counted in budget
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    await markAsPayment(tx.id, false);
+                    onSaved();
+                  }}
+                  disabled={saving}
+                  className="w-full text-gray-600 font-medium text-sm py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 active:bg-gray-50 mb-3 disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Not a payment — assign category"}
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-full bg-gray-100 text-gray-700 font-semibold rounded-xl py-3.5 text-sm hover:bg-gray-200 active:bg-gray-200 mb-safe"
+                >
+                  Close
+                </button>
+              </>
             ) : (
               <>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
@@ -249,6 +268,18 @@ export default function TransactionSheet({
                   className="w-full text-orange-500 font-medium text-sm py-2.5 border border-orange-200 rounded-xl hover:bg-orange-50 active:bg-orange-50 mb-3"
                 >
                   Split transaction
+                </button>
+
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    await markAsPayment(tx.id, true);
+                    onSaved();
+                  }}
+                  disabled={saving}
+                  className="w-full text-gray-500 font-medium text-sm py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 active:bg-gray-50 mb-3 disabled:opacity-50"
+                >
+                  {saving ? "Saving…" : "Mark as payment"}
                 </button>
 
                 <button

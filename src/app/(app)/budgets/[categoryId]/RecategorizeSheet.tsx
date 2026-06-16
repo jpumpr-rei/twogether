@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { recategorize } from "../../transactions/actions";
+import { recategorize, markAsPayment } from "../../transactions/actions";
 import type { CategoryInfo } from "../../transactions/types";
 
 export type RecategorizeTx = {
@@ -169,6 +169,22 @@ export default function RecategorizeSheet({
             </div>
           </button>
         )}
+
+        <button
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await markAsPayment(tx.id, true);
+              onSaved();
+            } finally {
+              setSaving(false);
+            }
+          }}
+          disabled={saving}
+          className="w-full text-gray-500 font-medium text-sm py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 active:bg-gray-50 mb-3 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Mark as payment"}
+        </button>
 
         <button
           onClick={handleSave}

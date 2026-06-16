@@ -130,6 +130,29 @@ export async function bulkRecategorize(
   revalidatePath("/budgets");
 }
 
+export async function markAsPayment(transactionId: string, asPayment: boolean) {
+  const supabase = await createClient();
+  const coupleId = await getVerifiedCoupleId(transactionId);
+
+  await supabase.from("transaction_splits").delete().eq("transaction_id", transactionId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from("transactions")
+    .update(
+      asPayment
+        ? { is_transfer: true, category_id: null, category_manually_set: true }
+        : { is_transfer: false, category_manually_set: true }
+    )
+    .eq("id", transactionId)
+    .eq("couple_id", coupleId);
+
+  if (error) throw error;
+
+  revalidatePath("/transactions");
+  revalidatePath("/budgets");
+}
+
 export async function saveSplits(
   transactionId: string,
   splits: { category_id: string | null; amount: number }[]
