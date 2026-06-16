@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { plaidClient } from "@/lib/plaid/client";
-import { bestCategory } from "@/lib/plaid/categorize";
+import { syncCouple } from "@/lib/plaid/syncCouple";
 
 type PlaidAccount = {
   id: string;
@@ -64,94 +64,15 @@ export async function POST(request: Request) {
     );
   }
 
-  // Sync the last 30 days of transactions (best-effort — don't fail the connection)
+  // Initial transaction sync (best-effort — don't fail the connection).
+  // syncCouple uses transactionsSync with no cursor on first call, fetching
+  // ~24 months of history and storing the cursor for future incremental syncs.
   try {
-    await syncRecentTransactions(supabase, coupleId, accessToken, itemId);
+    await syncCouple(supabase, coupleId);
   } catch (err) {
     console.error("Transaction sync failed (non-fatal):", err);
   }
 
   return NextResponse.json({ success: true });
-}
-
-async function syncRecentTransactions(
-  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>,
-  coupleId: string,
-  accessToken: string,
-  itemId: string
-) {
-  const endDate = new Date().toISOString().split("T")[0];
-  const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
-
-  // Fetch our categories for mapping
-  const { data: categories } = await supabase
-    .from("categories")
-    .select("id, name");
-
-  const categoryMap = new Map<string, string>();
-  for (const cat of categories ?? []) {
-    categoryMap.set(cat.name.toLowerCase(), cat.id);
-  }
-
-  // Map account_id → card DB id
-  const { data: cards } = await supabase
-    .from("cards")
-    .select("id, plaid_account_id")
-    .eq("couple_id", coupleId)
-    .eq("plaid_item_id", itemId);
-
-  const accountToCard = new Map<string, string>();
-  for (const card of cards ?? []) {
-    if (card.plaid_account_id) accountToCard.set(card.plaid_account_id, card.id);
-  }
-
-  // Fetch transactions using the get endpoint (30-day window, simpler than sync)
-  const txResponse = await plaidClient.transactionsGet({
-    access_token: accessToken,
-    start_date: startDate,
-    end_date: endDate,
-    options: { count: 500, offset: 0 },
-  });
-
-  const txs = txResponse.data.transactions;
-
-  for (const tx of txs) {
-    const cardId = accountToCard.get(tx.account_id) ?? null;
-
-    const plaidPrimary = tx.personal_finance_category?.primary ?? "";
-    const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
-
-    const categoryId = isTransferByCategory
-      ? null
-      : bestCategory(
-          { merchant_name: tx.merchant_name ?? tx.name, personal_finance_category: tx.personal_finance_category },
-          categoryMap
-        );
-
-    const isTransferByName =
-      !isTransferByCategory &&
-      !categoryId &&
-      /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
-
-    const isTransfer = isTransferByCategory || isTransferByName;
-
-    await supabase.from("transactions").upsert(
-      {
-        couple_id: coupleId,
-        card_id: cardId,
-        plaid_transaction_id: tx.transaction_id,
-        merchant_name: tx.merchant_name ?? tx.name,
-        amount: tx.amount, // positive = money out (Plaid convention)
-        currency: tx.iso_currency_code ?? "USD",
-        date: tx.date,
-        is_pending: tx.pending,
-        is_transfer: isTransfer,
-        category_id: categoryId,
-      },
-      { onConflict: "plaid_transaction_id" }
-    );
-  }
 }
 
