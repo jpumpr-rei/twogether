@@ -22,6 +22,9 @@ export default function TransactionSheet({
   const [mode, setMode] = useState<"single" | "split">(hasSplits ? "split" : "single");
   const [categoryId, setCategoryId] = useState<string | null>(tx.category_id);
   const [applyToAll, setApplyToAll] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<"transaction" | "payment">(
+    tx.is_transfer && !tx.category && tx.splits.length === 0 ? "payment" : "transaction"
+  );
   const [splits, setSplits] = useState<SplitState[]>(
     hasSplits
       ? tx.splits.map((s) => ({ category_id: s.category_id, amount: s.amount.toFixed(2) }))
@@ -67,7 +70,11 @@ export default function TransactionSheet({
 
   async function handleSaveSingle() {
     setSaving(true);
-    await recategorize(tx.id, categoryId, applyToAll, tx.merchant_name ?? null);
+    if (paymentMode === "payment") {
+      await markAsPayment(tx.id, true);
+    } else {
+      await recategorize(tx.id, categoryId, applyToAll, tx.merchant_name ?? null);
+    }
     onSaved();
   }
 
@@ -148,11 +155,9 @@ export default function TransactionSheet({
   const absAmount = Math.abs(tx.amount);
   const isCredit = tx.amount < 0;
 
-  // Payment transactions: is_transfer with no explicit category and no splits
-  const isPayment = tx.is_transfer && !tx.category && tx.splits.length === 0;
   // For payments, show the card's user-defined name (account_name) if set,
   // otherwise fall back to the institution name from Plaid
-  const displayTitle = isPayment && tx.card
+  const displayTitle = paymentMode === "payment" && tx.card
     ? tx.card.account_name ?? tx.card.institution_name
     : tx.merchant_name ?? "Unknown merchant";
 
@@ -171,44 +176,49 @@ export default function TransactionSheet({
             {isCredit ? "+" : ""}${absAmount.toFixed(2)}
           </p>
         </div>
-        <p className="text-sm text-gray-400 mb-5">
-          {tx.card && !isPayment
+        <p className="text-sm text-gray-400 mb-4">
+          {tx.card && paymentMode !== "payment"
             ? `${tx.card.institution_name}${tx.card.last_four ? ` ·· ${tx.card.last_four}` : ""} · `
             : ""}
           {tx.date}
           {tx.is_pending && <span className="ml-1 text-orange-400">· Pending</span>}
         </p>
 
+        {/* Transaction / Payment toggle */}
+        <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
+          <button
+            onClick={() => setPaymentMode("transaction")}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              paymentMode === "transaction"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            Transaction
+          </button>
+          <button
+            onClick={() => { setPaymentMode("payment"); setMode("single"); }}
+            className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${
+              paymentMode === "payment"
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-400 hover:text-gray-600"
+            }`}
+          >
+            Payment
+          </button>
+        </div>
+
         {/* ── Single category mode ── */}
         {mode === "single" && (
           <>
-            {/* Payment transactions: show unmark option */}
-            {isPayment ? (
-              <>
-                <div className="bg-blue-50 rounded-xl px-4 py-3 mb-4 flex items-center gap-3">
-                  <span className="text-lg">💳</span>
-                  <p className="text-sm text-blue-700 font-medium flex-1">
-                    Marked as a payment — not counted in budget
-                  </p>
-                </div>
-                <button
-                  onClick={async () => {
-                    setSaving(true);
-                    await markAsPayment(tx.id, false);
-                    onSaved();
-                  }}
-                  disabled={saving}
-                  className="w-full text-gray-600 font-medium text-sm py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 active:bg-gray-50 mb-3 disabled:opacity-50"
-                >
-                  {saving ? "Saving…" : "Not a payment — assign category"}
-                </button>
-                <button
-                  onClick={onClose}
-                  className="w-full bg-gray-100 text-gray-700 font-semibold rounded-xl py-3.5 text-sm hover:bg-gray-200 active:bg-gray-200 mb-safe"
-                >
-                  Close
-                </button>
-              </>
+            {paymentMode === "payment" ? (
+              <button
+                onClick={handleSaveSingle}
+                disabled={saving}
+                className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3.5 text-sm disabled:opacity-50 hover:bg-orange-600 active:bg-orange-600 mb-safe"
+              >
+                {saving ? "Saving…" : "Done"}
+              </button>
             ) : (
               <>
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
@@ -268,18 +278,6 @@ export default function TransactionSheet({
                   className="w-full text-orange-500 font-medium text-sm py-2.5 border border-orange-200 rounded-xl hover:bg-orange-50 active:bg-orange-50 mb-3"
                 >
                   Split transaction
-                </button>
-
-                <button
-                  onClick={async () => {
-                    setSaving(true);
-                    await markAsPayment(tx.id, true);
-                    onSaved();
-                  }}
-                  disabled={saving}
-                  className="w-full text-gray-500 font-medium text-sm py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 active:bg-gray-50 mb-3 disabled:opacity-50"
-                >
-                  {saving ? "Saving…" : "Mark as payment"}
                 </button>
 
                 <button

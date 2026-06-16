@@ -45,7 +45,7 @@ export async function recategorize(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("transactions")
-      .update({ category_id: newCategoryId, category_manually_set: true })
+      .update({ category_id: newCategoryId, category_manually_set: true, is_transfer: false })
       .eq("couple_id", coupleId)
       .eq("merchant_name", merchantName);
     if (error) throw error;
@@ -58,7 +58,7 @@ export async function recategorize(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("transactions")
-      .update({ category_id: newCategoryId, category_manually_set: true })
+      .update({ category_id: newCategoryId, category_manually_set: true, is_transfer: false })
       .eq("id", transactionId)
       .eq("couple_id", coupleId); // ownership check
     if (error) throw error;
