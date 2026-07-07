@@ -508,13 +508,13 @@ function BudgetRow({
 }) {
   const { category, budget, spent } = slot;
   const hasBudget = budget != null;
-  const hasSpend  = spent > 0;
+  const hasSpend  = spent !== 0;
 
   const displayAmount = hasBudget
     ? normalizedBudgetAmount(budget.amount, budget.period, viewType, rangeCount)
     : 0;
 
-  const pct      = hasBudget && displayAmount > 0 ? Math.min(100, (spent / displayAmount) * 100) : 0;
+  const pct      = hasBudget && displayAmount > 0 ? Math.max(0, Math.min(100, (spent / displayAmount) * 100)) : 0;
   const isOver   = hasBudget && displayAmount > 0 && spent > displayAmount;
   const barColor = isOver ? "#f87171" : pct > 80 ? "#facc15" : "#fb923c";
   const iconBg   = category.color ? category.color + "22" : "#f3f4f6";
@@ -545,8 +545,10 @@ function BudgetRow({
               </p>
             )}
             {spendOnly && (
-              <p className="text-xs text-gray-400">
-                ${spent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent
+              <p className={`text-xs ${spent < 0 ? "text-green-500" : "text-gray-400"}`}>
+                {spent < 0
+                  ? `$${Math.abs(spent).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} refunded`
+                  : `$${spent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent`}
               </p>
             )}
           </div>
@@ -570,8 +572,10 @@ function BudgetRow({
               />
             </div>
             <div className="flex justify-between mt-1">
-              <p className="text-xs text-gray-400">
-                ${spent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent
+              <p className={`text-xs ${spent < 0 ? "text-green-500" : "text-gray-400"}`}>
+                {spent < 0
+                  ? `$${Math.abs(spent).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} refunded`
+                  : `$${spent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent`}
               </p>
               <p className={`text-xs font-medium ${isOver ? "text-red-500" : "text-gray-400"}`}>
                 {isOver
