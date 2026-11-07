@@ -7,6 +7,11 @@
  * window. The cursor is persisted on every card row for that Plaid item.
  * First sync (no cursor) fetches ~24 months of history; subsequent syncs
  * are incremental.
+ *
+ * All pages for an item are collected first and applied together
+ * (see applySyncChanges) so a pending transaction and the settled transaction
+ * that replaces it are always handled in the same pass, even if Plaid paginates
+ * them apart.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,6 +19,7 @@ type AnySupabase = any;
 
 import { plaidClient } from "./client";
 import { bestCategory } from "./categorize";
+import { applySyncChanges, type PlaidTxLike } from "./applySyncChanges";
 
 export async function syncCouple(
   supabase: AnySupabase,
@@ -35,22 +41,14 @@ export async function syncCouple(
     categoryMap.set((cat.name as string).toLowerCase(), cat.id as string);
   }
 
-  const { data: manualRows } = await supabase
-    .from("transactions")
-    .select("plaid_transaction_id, category_id, is_transfer")
-    .eq("couple_id", coupleId)
-    .eq("category_manually_set", true)
-    .not("plaid_transaction_id", "is", null);
-
-  // Map plaid_transaction_id → manual overrides so we can inherit them when a
-  // pending transaction settles and Plaid issues a new transaction_id for it.
-  const manualMap = new Map<string, { category_id: string | null; is_transfer: boolean }>(
-    (manualRows ?? []).map((r: { plaid_transaction_id: string; category_id: string | null; is_transfer: boolean }) => [
-      r.plaid_transaction_id,
-      { category_id: r.category_id, is_transfer: r.is_transfer },
-    ])
-  );
-  const manualIds = new Set<string>(manualMap.keys());
+  const categorize = (tx: PlaidTxLike) =>
+    bestCategory(
+      {
+        merchant_name: tx.merchant_name ?? tx.name,
+        personal_finance_category: tx.personal_finance_category,
+      },
+      categoryMap
+    );
 
   // Group cards by Plaid item (one access token can cover multiple accounts).
   // The cursor is per item — read from the first card found for each item.
@@ -79,7 +77,10 @@ export async function syncCouple(
     try {
       let nextCursor: string | undefined = cursor ?? undefined;
       let hasMore = true;
-      let itemSynced = 0;
+
+      const added: PlaidTxLike[] = [];
+      const modified: PlaidTxLike[] = [];
+      const removed: { transaction_id: string }[] = [];
 
       while (hasMore) {
         const response = await plaidClient.transactionsSync({
@@ -88,84 +89,18 @@ export async function syncCouple(
           count: 500,
         });
 
-        const { added, modified, removed, next_cursor, has_more } = response.data;
-
-        for (const tx of [...added, ...modified]) {
-          const cardId = accountToCard.get(tx.account_id) ?? null;
-          const isManual = manualIds.has(tx.transaction_id);
-          // When a pending tx settles, Plaid issues a new transaction_id and sets
-          // pending_transaction_id to the retired pending ID. If the user manually
-          // categorized the pending version, inherit those settings on the settled row.
-          const pendingManual = !isManual && tx.pending_transaction_id
-            ? manualMap.get(tx.pending_transaction_id)
-            : undefined;
-
-          const plaidPrimary = tx.personal_finance_category?.primary ?? "";
-          const isTransferByCategory = ["LOAN_PAYMENTS", "TRANSFER_IN", "TRANSFER_OUT"].includes(plaidPrimary);
-
-          const autoCategory = isManual || pendingManual || isTransferByCategory
-            ? null
-            : bestCategory(
-                {
-                  merchant_name: tx.merchant_name ?? tx.name,
-                  personal_finance_category: tx.personal_finance_category,
-                },
-                categoryMap
-              );
-
-          const isTransferByName =
-            !isTransferByCategory &&
-            !autoCategory &&
-            /\bpayment\b/i.test(tx.merchant_name ?? tx.name ?? "");
-          const isTransfer = isTransferByCategory || isTransferByName;
-
-          // category_id: inherit from pending manual, skip for existing manual, auto otherwise
-          const categoryField = isManual
-            ? {}
-            : pendingManual
-            ? { category_id: pendingManual.category_id }
-            : { category_id: isTransfer ? null : autoCategory };
-
-          // is_transfer + category_manually_set: inherit from pending, preserve for existing
-          // manual (don't let Plaid overwrite a user's "Mark as payment" flag), auto otherwise
-          const transferField = pendingManual
-            ? { is_transfer: pendingManual.is_transfer, category_manually_set: true }
-            : isManual
-            ? {}
-            : { is_transfer: isTransfer };
-
-          await supabase.from("transactions").upsert(
-            {
-              couple_id: coupleId,
-              card_id: cardId,
-              plaid_transaction_id: tx.transaction_id,
-              merchant_name: tx.merchant_name ?? tx.name,
-              amount: tx.amount,
-              currency: tx.iso_currency_code ?? "USD",
-              date: tx.date,
-              is_pending: tx.pending,
-              ...transferField,
-              ...categoryField,
-            },
-            { onConflict: "plaid_transaction_id" }
-          );
-        }
-
-        // Plaid reports removed transactions explicitly (e.g. when a pending
-        // transaction clears — it retires the pending ID and creates a new one).
-        if (removed.length > 0) {
-          const removedIds = removed.map((r: { transaction_id: string }) => r.transaction_id);
-          await supabase
-            .from("transactions")
-            .delete()
-            .eq("couple_id", coupleId)
-            .in("plaid_transaction_id", removedIds);
-        }
-
-        itemSynced += added.length + modified.length;
-        nextCursor = next_cursor;
-        hasMore = has_more;
+        added.push(...response.data.added);
+        modified.push(...response.data.modified);
+        removed.push(...response.data.removed.map((r) => ({ transaction_id: r.transaction_id as string })));
+        nextCursor = response.data.next_cursor;
+        hasMore = response.data.has_more;
       }
+
+      await applySyncChanges(
+        supabase,
+        { coupleId, accountToCard, categorize },
+        { added, modified, removed }
+      );
 
       // Write the cursor to every card row for this item so the next sync
       // resumes from the right position regardless of which card is read first.
@@ -175,7 +110,7 @@ export async function syncCouple(
         .eq("couple_id", coupleId)
         .eq("plaid_item_id", itemId);
 
-      totalSynced += itemSynced;
+      totalSynced += added.length + modified.length;
     } catch (err) {
       console.error(`Sync failed for item ${itemId}:`, err);
       // Extract the human-readable message from a Plaid API error if present.
