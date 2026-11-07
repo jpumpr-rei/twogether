@@ -1,5 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { getAuth } from "@/lib/supabase/auth";
 import AccountsClient, { type CardDisplay } from "./AccountsClient";
 
 type CardRow = {
@@ -13,22 +12,11 @@ type CardRow = {
 };
 
 export default async function AccountsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("couple_id")
-    .eq("id", user.id)
-    .single();
-
+  const { supabase, user, profile } = await getAuth();
   const coupleId = profile?.couple_id ?? null;
 
   let cards: CardDisplay[] = [];
-  let ownerNames: Record<string, string> = {};
+  const ownerNames: Record<string, string> = {};
   let lastSyncedAt: string | null = null;
 
   if (coupleId) {

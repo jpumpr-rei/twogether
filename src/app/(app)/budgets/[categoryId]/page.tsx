@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAuth } from "@/lib/supabase/auth";
 import { redirect } from "next/navigation";
 import CategoryDetailClient from "./CategoryDetailClient";
 import { parseBudgetPeriod, budgetPeriodBounds } from "@/lib/budgetPeriod";
@@ -17,39 +17,8 @@ export default async function CategoryDetailPage({
   const activePeriod = parseBudgetPeriod(sp);
   const { startDate, endDate } = budgetPeriodBounds(activePeriod);
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("couple_id")
-    .eq("id", user.id)
-    .single();
-
+  const { supabase, profile } = await getAuth();
   const coupleId = profile?.couple_id ?? null;
-
-  // Fetch the category
-  const { data: categoryData } = await supabase
-    .from("categories")
-    .select("id, name, icon, color, is_default")
-    .eq("id", categoryId)
-    .single();
-
-  if (!categoryData) redirect("/budgets");
-  const category = categoryData as CategoryRow;
-
-  // Fetch the budget for this category
-  let budget: BudgetRow | null = null;
-  if (coupleId) {
-    const { data } = await supabase
-      .from("budgets")
-      .select("id, name, amount, period, category_id")
-      .eq("couple_id", coupleId)
-      .eq("category_id", categoryId)
-      .maybeSingle();
-    budget = (data as BudgetRow | null) ?? null;
-  }
 
   // Splits embedded directly to avoid a separate .in() call that can exceed URL limits.
   const TX_SELECT = `
@@ -60,28 +29,57 @@ export default async function CategoryDetailPage({
   `;
 
   let transactions: TxRow[] = [];
-  let splitAmountOverrides: Record<string, number> = {};
+  const splitAmountOverrides: Record<string, number> = {};
   let allCategories: CategoryInfo[] = [];
 
-  if (coupleId) {
-    // Fetch direct transactions, all categories, and split rows for this category in parallel
-    const [{ data: txData }, { data: catData }, { data: splitLookup }] = await Promise.all([
-      // Direct transactions — category_id matches
+  // None of these depend on each other, so fetch them in one parallel batch:
+  // the category itself, its budget, its direct transactions, all categories, and
+  // the split rows attributed to it.
+  const [{ data: categoryData }, { data: budgetData }, txResult, catResult, splitResult] =
+    await Promise.all([
       supabase
-        .from("transactions")
-        .select(TX_SELECT)
-        .eq("couple_id", coupleId)
-        .eq("category_id", categoryId)
-        .gte("date", startDate)
-        .lte("date", endDate)
-        .order("date", { ascending: false }),
-      supabase.from("categories").select("id, name, icon, color").order("name"),
+        .from("categories")
+        .select("id, name, icon, color, is_default")
+        .eq("id", categoryId)
+        .single(),
+      coupleId
+        ? supabase
+            .from("budgets")
+            .select("id, name, amount, period, category_id")
+            .eq("couple_id", coupleId)
+            .eq("category_id", categoryId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+      coupleId
+        ? supabase
+            .from("transactions")
+            .select(TX_SELECT)
+            .eq("couple_id", coupleId)
+            .eq("category_id", categoryId) // direct transactions — category_id matches
+            .gte("date", startDate)
+            .lte("date", endDate)
+            .order("date", { ascending: false })
+        : Promise.resolve({ data: [] }),
+      coupleId
+        ? supabase.from("categories").select("id, name, icon, color").order("name")
+        : Promise.resolve({ data: [] }),
       // All split rows attributed to this category (no date filter — filter by parent tx date below)
-      supabase
-        .from("transaction_splits")
-        .select("transaction_id, amount")
-        .eq("category_id", categoryId),
+      coupleId
+        ? supabase
+            .from("transaction_splits")
+            .select("transaction_id, amount")
+            .eq("category_id", categoryId)
+        : Promise.resolve({ data: [] }),
     ]);
+
+  if (!categoryData) redirect("/budgets");
+  const category = categoryData as CategoryRow;
+  const budget = (budgetData as BudgetRow | null) ?? null;
+
+  if (coupleId) {
+    const txData = txResult.data;
+    const catData = catResult.data;
+    const splitLookup = splitResult.data;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const directTxs = (txData ?? []).map((tx: any) => ({ ...tx, splits: tx.splits ?? [] })) as TxRow[];

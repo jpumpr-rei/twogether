@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo, useRef } from "react";
+import { useState, useTransition, useMemo, useRef, useCallback, useEffect, memo } from "react";
 import { useRouter } from "next/navigation";
 import TransactionSheet from "./TransactionSheet";
 import DateFilterSheet from "@/components/ui/DateFilterSheet";
@@ -89,7 +89,9 @@ function AccountFilterSheet({
 }
 
 // ── Transaction list row ──────────────────────────────────────────────────────
-function TxListRow({
+// Memoized, with stable callbacks passed in, so selecting a row or typing in the
+// search box only re-renders the rows that actually changed.
+const TxListRow = memo(function TxListRow({
   tx,
   isMultiSelect,
   isSelected,
@@ -99,9 +101,9 @@ function TxListRow({
   tx: TxRow;
   isMultiSelect: boolean;
   isSelected: boolean;
-  onTap: () => void;
+  onTap: (tx: TxRow) => void;
   /** Enter multi-select (or toggle) — triggered by icon click on desktop or long-press on touch */
-  onSelect: () => void;
+  onSelect: (id: string) => void;
 }) {
   const hasSplits = tx.splits.length > 0;
   const category = tx.category;
@@ -129,7 +131,7 @@ function TxListRow({
     timerRef.current = setTimeout(() => {
       didLongPress.current = true;
       navigator.vibrate?.(30);
-      onSelect();
+      onSelect(tx.id);
     }, 450);
   }
 
@@ -141,13 +143,13 @@ function TxListRow({
     cancelPress();
     if (didLongPress.current) return;
 
-    if (isMultiSelect) { onSelect(); return; }
+    if (isMultiSelect) { onSelect(tx.id); return; }
 
     // Desktop: clicking the icon area (leftmost ~56 px) enters multi-select
     const rect = e.currentTarget.getBoundingClientRect();
-    if (e.clientX - rect.left < 56) { onSelect(); return; }
+    if (e.clientX - rect.left < 56) { onSelect(tx.id); return; }
 
-    onTap();
+    onTap(tx);
   }
 
   return (
@@ -217,6 +219,37 @@ function TxListRow({
         </span>
       </button>
     </div>
+  );
+});
+
+// Rows are rendered in batches (a long "All time" list is thousands of DOM nodes, which
+// is what made this tab slow to open). The next batch loads automatically as the user
+// scrolls near the bottom; the button is a fallback.
+const INITIAL_ROWS = 100;
+const ROWS_PER_BATCH = 150;
+
+function LoadMore({ remaining, onMore }: { remaining: number; onMore: () => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) onMore(); },
+      { rootMargin: "800px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onMore, remaining]);
+
+  return (
+    <button
+      ref={ref}
+      onClick={onMore}
+      className="w-full py-3 text-sm font-medium text-gray-400 hover:text-gray-600 active:text-gray-600"
+    >
+      Show more · {remaining} remaining
+    </button>
   );
 }
 
@@ -301,18 +334,19 @@ export default function TransactionsClient({
   const [bulkSaving, setBulkSaving] = useState(false);
   const isMultiSelect = multiSelectIds.size > 0;
 
-  function toggleMultiSelect(id: string) {
+  // Starts multi-select when nothing is selected, otherwise toggles the row.
+  // Stable identity so memoized rows don't re-render on every state change.
+  const selectRow = useCallback((id: string) => {
     setMultiSelectIds((prev) => {
+      if (prev.size === 0) return new Set([id]);
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }
+  }, []);
 
-  function enterMultiSelect(id: string) {
-    setMultiSelectIds(new Set([id]));
-  }
+  const openRow = useCallback((tx: TxRow) => setSelectedTx(tx), []);
 
   function exitMultiSelect() {
     setMultiSelectIds(new Set());
@@ -390,6 +424,14 @@ export default function TransactionsClient({
       : `${selectedCardIds.size} accounts`;
 
   const hasActiveFilters = !!search.trim() || selectedCardIds.size > 0;
+
+  // Only the first batch of rows is rendered up front; search and filters above still
+  // cover every loaded transaction.
+  const [visibleRows, setVisibleRows] = useState(INITIAL_ROWS);
+  const showMore = useCallback(() => setVisibleRows((n) => n + ROWS_PER_BATCH), []);
+  const visible = useMemo(() => filtered.slice(0, visibleRows), [filtered, visibleRows]);
+  const groups = useMemo(() => groupByDate(visible), [visible]);
+  const remainingRows = filtered.length - visible.length;
 
   return (
     <div className="px-4 pt-12 pb-24">
@@ -495,7 +537,7 @@ export default function TransactionsClient({
         </div>
       ) : (
         <div className="space-y-5">
-          {groupByDate(filtered).map(({ label, txs }) => (
+          {groups.map(({ label, txs }) => (
             <div key={label}>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
                 {label}
@@ -507,13 +549,14 @@ export default function TransactionsClient({
                     tx={tx}
                     isMultiSelect={isMultiSelect}
                     isSelected={multiSelectIds.has(tx.id)}
-                    onTap={() => setSelectedTx(tx)}
-                    onSelect={() => isMultiSelect ? toggleMultiSelect(tx.id) : enterMultiSelect(tx.id)}
+                    onTap={openRow}
+                    onSelect={selectRow}
                   />
                 ))}
               </div>
             </div>
           ))}
+          {remainingRows > 0 && <LoadMore remaining={remainingRows} onMore={showMore} />}
         </div>
       )}
 

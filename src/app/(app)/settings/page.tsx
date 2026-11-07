@@ -1,21 +1,10 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { getAuth } from "@/lib/supabase/auth";
 import SignOutButton from "@/components/ui/SignOutButton";
 import CoupleSection from "./CoupleSection";
 import EditNameRow from "./EditNameRow";
 
 export default async function SettingsPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
+  const { supabase, user, profile } = await getAuth();
 
   type CoupleRow = { name: string | null; invite_code: string };
   let couple: CoupleRow | null = null;

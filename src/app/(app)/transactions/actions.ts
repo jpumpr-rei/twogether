@@ -1,13 +1,14 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getClaimsUser } from "@/lib/supabase/auth";
 import { revalidatePath } from "next/cache";
 
 // Shared helper — resolves the authenticated user's couple_id and verifies
 // the given transaction belongs to it. Returns couple_id on success.
 async function getVerifiedCoupleId(transactionId: string): Promise<string> {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) throw new Error("Not authenticated");
 
   const { data: tx } = await supabase
@@ -98,7 +99,7 @@ export async function bulkRecategorize(
 ) {
   if (!transactionIds.length) return;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getClaimsUser(supabase);
   if (!user) throw new Error("Not authenticated");
 
   const { data: profile } = await supabase

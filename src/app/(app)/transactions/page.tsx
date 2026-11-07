@@ -1,5 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { getAuth } from "@/lib/supabase/auth";
 import TransactionsClient from "./TransactionsClient";
 import { parseDateFilter, dateFilterBounds } from "@/lib/dateFilter";
 import type { TxRow, CategoryInfo, CardInfo } from "./types";
@@ -11,35 +10,13 @@ export default async function TransactionsPage({
 }) {
   const params = await searchParams;
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("couple_id")
-    .eq("id", user.id)
-    .single();
-
+  const { supabase, profile } = await getAuth();
   const coupleId = profile?.couple_id ?? null;
 
   const activeFilter = parseDateFilter(params);
   const { startDate, endDate } = dateFilterBounds(activeFilter);
 
-  // Fetch last sync time
   let lastSyncedAt: string | null = null;
-  if (coupleId) {
-    const { data: couple } = await supabase
-      .from("couples")
-      .select("last_synced_at")
-      .eq("id", coupleId)
-      .single();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    lastSyncedAt = (couple as any)?.last_synced_at ?? null;
-  }
-
   let transactions: TxRow[] = [];
   let categories: CategoryInfo[] = [];
   let cards: CardInfo[] = [];
@@ -65,17 +42,22 @@ export default async function TransactionsPage({
     // Cap date-filtered views; All Time is naturally bounded by the 90-day sync window.
     if (startDate || endDate) txQuery = txQuery.limit(500);
 
-    const [{ data: txData }, { data: catData }, { data: cardData }] = await Promise.all([
-      txQuery,
-      supabase.from("categories").select("id, name, icon, color").order("name"),
-      supabase
-        .from("cards")
-        .select("id, institution_name, account_name, last_four")
-        .eq("couple_id", coupleId)
-        .eq("is_active", true)
-        .order("institution_name"),
-    ]);
+    // Everything below is independent, so fetch it in one round trip.
+    const [{ data: coupleData }, { data: txData }, { data: catData }, { data: cardData }] =
+      await Promise.all([
+        supabase.from("couples").select("last_synced_at").eq("id", coupleId).single(),
+        txQuery,
+        supabase.from("categories").select("id, name, icon, color").order("name"),
+        supabase
+          .from("cards")
+          .select("id, institution_name, account_name, last_four")
+          .eq("couple_id", coupleId)
+          .eq("is_active", true)
+          .order("institution_name"),
+      ]);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lastSyncedAt = (coupleData as any)?.last_synced_at ?? null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     transactions = (txData ?? []).map((tx: any) => ({ ...tx, splits: tx.splits ?? [] })) as TxRow[];
     categories = (catData ?? []) as CategoryInfo[];

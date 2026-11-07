@@ -1,32 +1,33 @@
-import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { getAuth } from "@/lib/supabase/auth";
 import BudgetsClient from "./BudgetsClient";
 import { parseBudgetPeriod, budgetPeriodBounds, comparisonBounds } from "@/lib/budgetPeriod";
 import type { CategoryRow, BudgetRow, BudgetSlot } from "./types";
 
+type SpendTx = {
+  category_id: string | null;
+  amount: number;
+  splits: { category_id: string | null; amount: number }[] | null;
+};
+
+// Splits are embedded in the same request (one round trip, and no long
+// .in("transaction_id", [...]) list that can overflow the URL and silently return nothing).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchTotalSpent(supabase: any, coupleId: string, startDate: string, endDate: string): Promise<number> {
-  const { data: txs } = await supabase
+async function fetchSpendTxs(supabase: any, coupleId: string, startDate: string, endDate: string): Promise<SpendTx[]> {
+  const { data } = await supabase
     .from("transactions")
-    .select("id, category_id, amount")
+    .select("category_id, amount, splits:transaction_splits(category_id, amount)")
     .eq("couple_id", coupleId)
     .gte("date", startDate)
     .lte("date", endDate);
+  return (data ?? []) as SpendTx[];
+}
 
-  const txList = (txs ?? []) as { id: string; category_id: string | null; amount: number }[];
+// Total spend for a comparison period: categorized transactions plus every positive split.
+function totalSpent(txs: SpendTx[]): number {
   let total = 0;
-  for (const tx of txList) {
+  for (const tx of txs) {
     if (tx.category_id) total += tx.amount;
-  }
-
-  const txIds = txList.map((t) => t.id);
-  if (txIds.length > 0) {
-    const { data: splits } = await supabase
-      .from("transaction_splits")
-      .select("amount")
-      .in("transaction_id", txIds)
-      .gt("amount", 0);
-    for (const s of (splits ?? []) as { amount: number }[]) total += s.amount;
+    for (const s of tx.splits ?? []) if (s.amount > 0) total += s.amount;
   }
   return total;
 }
@@ -39,21 +40,14 @@ export default async function BudgetsPage({
   const sp = await searchParams;
   const activePeriod = parseBudgetPeriod(sp);
   const { startDate, endDate } = budgetPeriodBounds(activePeriod);
+  const { prevBounds, yoyBounds } = comparisonBounds(activePeriod);
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
+  const { supabase, profile } = await getAuth();
   const coupleId: string | null = profile?.couple_id ?? null;
 
-  // Fetch categories and budgets in parallel
-  const [categoriesResult, budgetsResult] = await Promise.all([
+  // Everything below is independent of everything else once we know the household,
+  // so it all runs in a single parallel batch.
+  const [categoriesResult, budgetsResult, currentTxs, prevTxs, yoyTxs] = await Promise.all([
     coupleId
       ? supabase
           .from("categories")
@@ -71,6 +65,13 @@ export default async function BudgetsPage({
           .select("id, name, amount, period, category_id")
           .eq("couple_id", coupleId)
       : Promise.resolve({ data: [] }),
+    coupleId ? fetchSpendTxs(supabase, coupleId, startDate, endDate) : Promise.resolve([] as SpendTx[]),
+    coupleId && prevBounds
+      ? fetchSpendTxs(supabase, coupleId, prevBounds.startDate, prevBounds.endDate)
+      : Promise.resolve(null),
+    coupleId && yoyBounds
+      ? fetchSpendTxs(supabase, coupleId, yoyBounds.startDate, yoyBounds.endDate)
+      : Promise.resolve(null),
   ]);
 
   const categories = (categoriesResult.data ?? []) as CategoryRow[];
@@ -78,51 +79,19 @@ export default async function BudgetsPage({
 
   // Spending for the selected period (per category, for slot assembly)
   const spending: Record<string, number> = {};
-  let totalSpent = 0;
-  let prevSpent: number | null = null;
-  let yoySpent: number | null = null;
-
-  if (coupleId) {
-    const { data: txs } = await supabase
-      .from("transactions")
-      .select("id, category_id, amount")
-      .eq("couple_id", coupleId)
-      .gte("date", startDate)
-      .lte("date", endDate);
-
-    const txList = (txs ?? []) as { id: string; category_id: string | null; amount: number }[];
-
-    for (const tx of txList) {
-      if (tx.category_id) {
-        spending[tx.category_id] = (spending[tx.category_id] ?? 0) + tx.amount;
+  for (const tx of currentTxs) {
+    if (tx.category_id) {
+      spending[tx.category_id] = (spending[tx.category_id] ?? 0) + tx.amount;
+    }
+    for (const s of tx.splits ?? []) {
+      if (s.category_id && s.amount > 0) {
+        spending[s.category_id] = (spending[s.category_id] ?? 0) + s.amount;
       }
     }
-
-    const txIds = txList.map((t) => t.id);
-    if (txIds.length > 0) {
-      const { data: splits } = await supabase
-        .from("transaction_splits")
-        .select("category_id, amount")
-        .in("transaction_id", txIds)
-        .gt("amount", 0);
-      for (const s of (splits ?? []) as { category_id: string | null; amount: number }[]) {
-        if (s.category_id) {
-          spending[s.category_id] = (spending[s.category_id] ?? 0) + s.amount;
-        }
-      }
-    }
-
-    totalSpent = Object.values(spending).reduce((s, v) => s + v, 0);
-
-    // Fetch comparison totals for variance display
-    const { prevBounds, yoyBounds } = comparisonBounds(activePeriod);
-    const [prev, yoy] = await Promise.all([
-      prevBounds ? fetchTotalSpent(supabase, coupleId, prevBounds.startDate, prevBounds.endDate) : Promise.resolve(null),
-      yoyBounds  ? fetchTotalSpent(supabase, coupleId, yoyBounds.startDate,  yoyBounds.endDate)  : Promise.resolve(null),
-    ]);
-    prevSpent = prev;
-    yoySpent  = yoy;
   }
+  const periodTotal = Object.values(spending).reduce((s, v) => s + v, 0);
+  const prevSpent = prevTxs ? totalSpent(prevTxs) : null;
+  const yoySpent = yoyTxs ? totalSpent(yoyTxs) : null;
 
   const budgetMap = new Map(budgets.map((b) => [b.category_id ?? "", b]));
   const slots: BudgetSlot[] = categories
@@ -142,7 +111,7 @@ export default async function BudgetsPage({
     <BudgetsClient
       slots={slots}
       activePeriod={activePeriod}
-      totalSpent={totalSpent}
+      totalSpent={periodTotal}
       prevSpent={prevSpent}
       yoySpent={yoySpent}
     />

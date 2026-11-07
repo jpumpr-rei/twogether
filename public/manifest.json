@@ -2,7 +2,7 @@
   "name": "twogether",
   "short_name": "twogether",
   "description": "Shared budgets for couples",
-  "start_url": "/",
+  "start_url": "/budgets",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#f97316",
