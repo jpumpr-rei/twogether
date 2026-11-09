@@ -108,11 +108,22 @@ export default function CategoryDetailClient({
     ? normalizedBudgetAmount(budget.amount, budget.period, viewType, rangeCount)
     : 0;
 
-  const pct      = budget && displayBudget > 0 ? Math.min(100, (spent / displayBudget) * 100) : 0;
+  const pct      = budget && displayBudget > 0 ? Math.max(0, Math.min(100, (spent / displayBudget) * 100)) : 0;
   const isOver   = budget ? spent > displayBudget : false;
   const barColor = isOver ? "#f87171" : pct > 80 ? "#facc15" : "#fb923c";
   const iconBg   = category.color ? category.color + "22" : "#f3f4f6";
   const periodLabel = budgetPeriodLabel(activePeriod);
+
+  // Net spend for the period, shown whether or not a budget exists. Rounded to cents first so
+  // floating-point dust (a purchase and its refund netting to -0.0000000000000018) can't read
+  // as a refund. A net negative means refunds outweighed purchases, which the category list
+  // also shows as "refunded" rather than a negative "spent".
+  const spentCents = Math.round(spent * 100);
+  const isRefund   = spentCents < 0;
+  const spentText  = (Math.abs(spentCents) / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 
   function navigate(period: BudgetPeriod) {
     setShowPicker(false);
@@ -352,25 +363,33 @@ export default function CategoryDetailClient({
               />
             </div>
             <div className="flex justify-between">
-              <p className="text-sm text-gray-500">
-                ${spent.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} spent
+              <p className={`text-sm ${isRefund ? "text-green-500" : "text-gray-500"}`}>
+                ${spentText} {isRefund ? "refunded" : "spent"}
               </p>
               <p className={`text-sm font-semibold ${isOver ? "text-red-500" : "text-gray-700"}`}>
                 {isOver
-                  ? `$${(spent - displayBudget).toLocaleString("en-US", { maximumFractionDigits: 2 })} over`
-                  : `$${(displayBudget - spent).toLocaleString("en-US", { maximumFractionDigits: 2 })} remaining`}
+                  ? `$${(spent - displayBudget).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over`
+                  : `$${(displayBudget - spent).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} remaining`}
               </p>
             </div>
           </div>
         ) : (
-          <div className="bg-orange-50 border border-orange-100 rounded-2xl p-5 text-center">
-            <p className="text-gray-600 text-sm mb-3">No budget set for this category.</p>
-            <button
-              onClick={() => setShowEdit(true)}
-              className="bg-orange-500 text-white font-semibold rounded-xl px-5 py-2.5 text-sm hover:bg-orange-600 active:bg-orange-600"
-            >
-              Set a budget
-            </button>
+          <div className="bg-white rounded-2xl p-4 shadow-sm">
+            <p className="text-sm text-gray-500 font-medium">
+              {periodLabel} {isRefund ? "refunded" : "spent"}
+            </p>
+            <p className={`text-3xl font-bold mt-1 ${isRefund ? "text-green-500" : "text-gray-900"}`}>
+              ${spentText}
+            </p>
+            <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-gray-100">
+              <p className="text-sm text-gray-400">No budget set</p>
+              <button
+                onClick={() => setShowEdit(true)}
+                className="text-sm text-orange-500 font-semibold border border-orange-200 rounded-lg px-3 py-1.5 hover:bg-orange-50 active:bg-orange-50"
+              >
+                Set a budget
+              </button>
+            </div>
           </div>
         )}
 

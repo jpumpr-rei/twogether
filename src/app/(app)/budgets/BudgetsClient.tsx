@@ -579,8 +579,8 @@ function BudgetRow({
               </p>
               <p className={`text-xs font-medium ${isOver ? "text-red-500" : "text-gray-400"}`}>
                 {isOver
-                  ? `$${(spent - displayAmount).toLocaleString("en-US", { maximumFractionDigits: 2 })} over`
-                  : `$${(displayAmount - spent).toLocaleString("en-US", { maximumFractionDigits: 2 })} left`}
+                  ? `$${(spent - displayAmount).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} over`
+                  : `$${(displayAmount - spent).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} left`}
               </p>
             </div>
           </div>
