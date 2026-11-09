@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { describeAIError } from "@/lib/ai/errors";
 
 // Allow up to 60 s on Vercel Pro / 10 s on Hobby (default would be 10 s which
 // is often not enough for the Supabase queries + Anthropic first-token latency)
@@ -125,10 +126,9 @@ Guidelines:
           }
         } catch (streamErr) {
           console.error("AI stream error:", streamErr);
-          // Surface the failure as a visible message rather than silent "…"
-          controller.enqueue(
-            encoder.encode("Sorry, I couldn't get a response right now. Please try again.")
-          );
+          // Surface the failure as a visible message rather than silent "…", saying what
+          // actually went wrong (rejected key, no credits, busy…) instead of one line for all.
+          controller.enqueue(encoder.encode(describeAIError(streamErr)));
         } finally {
           controller.close();
         }
