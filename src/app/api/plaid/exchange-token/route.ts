@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { plaidClient } from "@/lib/plaid/client";
-import { syncCouple } from "@/lib/plaid/syncCouple";
+import { syncCoupleForUser } from "@/lib/plaid/syncForUser";
 
 type PlaidAccount = {
   id: string;
@@ -65,10 +65,10 @@ export async function POST(request: Request) {
   }
 
   // Initial transaction sync (best-effort — don't fail the connection).
-  // syncCouple uses transactionsSync with no cursor on first call, fetching
+  // The sync uses transactionsSync with no cursor on first call, fetching
   // ~24 months of history and storing the cursor for future incremental syncs.
   try {
-    await syncCouple(supabase, coupleId);
+    await syncCoupleForUser(supabase, coupleId);
   } catch (err) {
     console.error("Transaction sync failed (non-fatal):", err);
   }

@@ -12,6 +12,12 @@
  * (see applySyncChanges) so a pending transaction and the settled transaction
  * that replaces it are always handled in the same pass, even if Plaid paginates
  * them apart.
+ *
+ * `supabase` must be a client that can see EVERY card in the couple — the service-role
+ * client. A client limited by row-level security can't see accounts hidden from its user,
+ * so it can't match their transactions to a card (see syncScope.ts). User-triggered syncs
+ * therefore go through syncCoupleForUser (syncForUser.ts), which passes the cards the user
+ * may see as `visibleCardIds` so the sync stays within what they could already see.
  */
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,10 +26,19 @@ type AnySupabase = any;
 import { plaidClient } from "./client";
 import { bestCategory } from "./categorize";
 import { applySyncChanges, type PlaidTxLike } from "./applySyncChanges";
+import { planItems, countReportable } from "./syncScope";
 
 export async function syncCouple(
   supabase: AnySupabase,
-  coupleId: string
+  coupleId: string,
+  options: {
+    /**
+     * Set for a user-triggered sync: only items that include one of these cards are
+     * synced, and only these cards' activity is counted. Leave unset (cron) to sync
+     * everything in the couple.
+     */
+    visibleCardIds?: ReadonlySet<string>;
+  } = {}
 ): Promise<{ synced: number; errors: string[] }> {
   const { data: cards } = await supabase
     .from("cards")
@@ -33,9 +48,17 @@ export async function syncCouple(
 
   if (!cards?.length) return { synced: 0, errors: [] };
 
+  // Group cards by Plaid item and, for a user-triggered sync, drop the items none of
+  // whose accounts the user can see.
+  const itemMap = planItems(cards, options.visibleCardIds);
+  if (itemMap.size === 0) return { synced: 0, errors: [] };
+
+  // This couple's categories only. The service-role client isn't limited by row-level
+  // security, so without the filter other couples' custom categories would match too.
   const { data: categories } = await supabase
     .from("categories")
-    .select("id, name");
+    .select("id, name")
+    .or(`is_default.eq.true,couple_id.eq.${coupleId}`);
   const categoryMap = new Map<string, string>();
   for (const cat of categories ?? []) {
     categoryMap.set((cat.name as string).toLowerCase(), cat.id as string);
@@ -49,26 +72,6 @@ export async function syncCouple(
       },
       categoryMap
     );
-
-  // Group cards by Plaid item (one access token can cover multiple accounts).
-  // The cursor is per item — read from the first card found for each item.
-  const itemMap = new Map<
-    string,
-    { accessToken: string; accountToCard: Map<string, string>; cursor: string | null }
-  >();
-  for (const card of cards) {
-    if (!card.plaid_item_id || !card.plaid_access_token) continue;
-    if (!itemMap.has(card.plaid_item_id)) {
-      itemMap.set(card.plaid_item_id, {
-        accessToken: card.plaid_access_token,
-        accountToCard: new Map(),
-        cursor: card.plaid_sync_cursor ?? null,
-      });
-    }
-    if (card.plaid_account_id) {
-      itemMap.get(card.plaid_item_id)!.accountToCard.set(card.plaid_account_id, card.id);
-    }
-  }
 
   let totalSynced = 0;
   const errors: string[] = [];
@@ -110,7 +113,7 @@ export async function syncCouple(
         .eq("couple_id", coupleId)
         .eq("plaid_item_id", itemId);
 
-      totalSynced += added.length + modified.length;
+      totalSynced += countReportable([...added, ...modified], accountToCard, options.visibleCardIds);
     } catch (err) {
       console.error(`Sync failed for item ${itemId}:`, err);
       // Extract the human-readable message from a Plaid API error if present.
