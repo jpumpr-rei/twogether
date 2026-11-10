@@ -12,6 +12,13 @@ const SUGGESTIONS = [
   "Where could we cut back?",
 ];
 
+// The date on this device. The server runs on UTC, which is already "tomorrow" on a US evening, so the
+// assistant would get "yesterday" and "last week" wrong if it had to guess.
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export default function AIChatSheet({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -42,7 +49,7 @@ export default function AIChatSheet({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({ messages: newMessages, today: localToday() }),
       });
 
       if (!res.ok || !res.body) throw new Error("Request failed");

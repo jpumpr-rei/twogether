@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { describeAIError } from "@/lib/ai/errors";
+import { runChatLoop } from "@/lib/ai/chatLoop";
+import { AI_TOOLS, runAITool, type ToolDb } from "@/lib/ai/tools";
+import { buildSystemPrompt, parseChatRequest } from "@/lib/ai/chatRequest";
 
-// Allow up to 60 s on Vercel Pro / 10 s on Hobby (default would be 10 s which
-// is often not enough for the Supabase queries + Anthropic first-token latency)
+// An answer can take several round trips (the model, then a database lookup, then the model again),
+// so allow the full 60 s that the Hobby plan permits.
 export const maxDuration = 60;
 
 // Model is read from the AI_MODEL env var at runtime so it can be updated in
@@ -17,8 +20,6 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { messages } = await req.json();
-
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -29,50 +30,44 @@ export async function POST(req: NextRequest) {
     if (!profile?.couple_id) {
       return NextResponse.json({ error: "No household connected" }, { status: 400 });
     }
-
     const coupleId = profile.couple_id;
-    const now = new Date();
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1)
-      .toISOString().split("T")[0];
 
-    const [{ data: txs }, { data: budgets }, { data: categories }] = await Promise.all([
-      supabase
-        .from("transactions")
-        .select("amount, date, category_id, merchant_name")
-        .eq("couple_id", coupleId)
-        .gte("date", sixMonthsAgo),
-      supabase
-        .from("budgets")
-        .select("amount, period, category_id")
-        .eq("couple_id", coupleId),
-      supabase
-        .from("categories")
-        .select("id, name")
-        .or(`is_default.eq.true,couple_id.eq.${coupleId}`),
-    ]);
-
-    const catMap = new Map((categories ?? []).map(c => [c.id, c.name]));
-
-    // Aggregate net spending by month and category
-    const monthly: Record<string, Record<string, number>> = {};
-    for (const tx of (txs ?? [])) {
-      const month = tx.date.slice(0, 7);
-      const cat = tx.category_id ? (catMap.get(tx.category_id) ?? "Other") : "Uncategorized";
-      if (!monthly[month]) monthly[month] = {};
-      monthly[month][cat] = (monthly[month][cat] ?? 0) + tx.amount;
+    const { messages, today } = parseChatRequest(
+      await req.json().catch(() => null),
+      new Date().toISOString().split("T")[0]
+    );
+    if (messages.length === 0) {
+      return NextResponse.json({ error: "No message" }, { status: 400 });
     }
 
-    // Sort months and round values
-    const monthlySummary = Object.entries(monthly)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([month, cats]) => ({
-        month,
-        total: Math.round(Object.values(cats).reduce((s, a) => s + a, 0)),
-        categories: Object.entries(cats)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 8)
-          .map(([cat, amt]) => ({ cat, amt: Math.round(amt) })),
-      }));
+    // Transactions themselves are looked up on demand by the assistant's tools. Here we only gather
+    // what it needs up front: the budgets, the category names, and how far back the data goes.
+    const [{ data: budgets }, { data: categories }, { data: earliest }, { data: latest }] =
+      await Promise.all([
+        supabase
+          .from("budgets")
+          .select("amount, period, category_id")
+          .eq("couple_id", coupleId),
+        supabase
+          .from("categories")
+          .select("id, name")
+          .or(`is_default.eq.true,couple_id.eq.${coupleId}`)
+          .order("name"),
+        supabase
+          .from("transactions")
+          .select("date")
+          .eq("couple_id", coupleId)
+          .order("date", { ascending: true })
+          .limit(1),
+        supabase
+          .from("transactions")
+          .select("date")
+          .eq("couple_id", coupleId)
+          .order("date", { ascending: false })
+          .limit(1),
+      ]);
+
+    const catMap = new Map((categories ?? []).map(c => [c.id, c.name]));
 
     const budgetSummary = (budgets ?? []).map(b => {
       const monthly = b.period === "yearly" ? b.amount / 12
@@ -83,54 +78,58 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const dataRange = {
+      earliest: earliest?.[0]?.date ?? null,
+      latest: latest?.[0]?.date ?? null,
+    };
 
-    const systemPrompt = `You are a friendly, helpful personal finance assistant for a couple using the Twogether budgeting app. You have access to their last 6 months of spending data.
-
-Today's date: ${now.toISOString().split("T")[0]}
-Current month: ${currentMonth}
-
-Monthly spending summary (last 6 months):
-${JSON.stringify(monthlySummary, null, 2)}
-
-Monthly budget targets:
-${JSON.stringify(budgetSummary, null, 2)}
-
-Guidelines:
-- Be conversational and friendly
-- Use specific numbers from their data
-- Keep responses concise (2-4 sentences unless they ask for detail)
-- If they ask about something outside the data, be honest that you don't have that info
-- Mention both people's perspective when relevant ("you both", "as a couple")`;
+    const systemPrompt = buildSystemPrompt({
+      today,
+      dataRange,
+      categories: [...catMap.values()],
+      budgets: budgetSummary,
+    });
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const stream = anthropic.messages.stream({
-      model: AI_MODEL,
-      max_tokens: 1024,
-      system: systemPrompt,
-      messages,
-    });
+    const toolContext = { db: supabase as unknown as ToolDb, coupleId, dataRange };
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        try {
-          for await (const event of stream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              controller.enqueue(encoder.encode(event.delta.text));
-            }
+        let wroteText = false;
+        // The browser may have gone away mid-answer; writing to a closed stream must not crash us.
+        const send = (text: string) => {
+          try {
+            controller.enqueue(encoder.encode(text));
+          } catch {
+            /* client disconnected */
           }
+        };
+
+        try {
+          await runChatLoop({
+            anthropic,
+            model: AI_MODEL,
+            system: systemPrompt,
+            messages,
+            tools: AI_TOOLS,
+            runTool: (name, input) => runAITool(name, input, toolContext),
+            onText: (text) => {
+              wroteText = true;
+              send(text);
+            },
+          });
         } catch (streamErr) {
           console.error("AI stream error:", streamErr);
           // Surface the failure as a visible message rather than silent "…", saying what
           // actually went wrong (rejected key, no credits, busy…) instead of one line for all.
-          controller.enqueue(encoder.encode(describeAIError(streamErr)));
+          send((wroteText ? "\n\n" : "") + describeAIError(streamErr));
         } finally {
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            /* already closed */
+          }
         }
       },
     });
