@@ -241,21 +241,25 @@ export default function AccountsClient({
                         )}
                       </div>
 
-                      {/* Edit & Remove */}
-                      <button
-                        onClick={() => setEditingCard(card)}
-                        className="text-gray-300 hover:text-orange-500 active:text-orange-500 p-1 flex-shrink-0"
-                        aria-label="Edit account name"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => setConfirmRemoveId(card.id)}
-                        className="text-gray-300 hover:text-red-400 active:text-red-400 p-1 flex-shrink-0"
-                        aria-label="Remove account"
-                      >
-                        🗑️
-                      </button>
+                      {/* Edit & Remove — a private account can only be changed by its holder */}
+                      {(!card.is_private || card.owner_id === currentUserId) && (
+                        <>
+                          <button
+                            onClick={() => setEditingCard(card)}
+                            className="text-gray-300 hover:text-orange-500 active:text-orange-500 p-1 flex-shrink-0"
+                            aria-label="Edit account name"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => setConfirmRemoveId(card.id)}
+                            className="text-gray-300 hover:text-red-400 active:text-red-400 p-1 flex-shrink-0"
+                            aria-label="Remove account"
+                          >
+                            🗑️
+                          </button>
+                        </>
+                      )}
                     </div>
                   );
                 })}

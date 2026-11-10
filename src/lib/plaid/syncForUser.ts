@@ -19,17 +19,25 @@ type UserClient = Awaited<ReturnType<typeof createClient>>;
  *
  * `coupleId` must come from the caller's own profile, never from the request.
  */
-export async function syncCoupleForUser(userSupabase: UserClient, coupleId: string) {
+export async function syncCoupleForUser(
+  userSupabase: UserClient,
+  coupleId: string,
+  userId: string
+) {
   // Created first so a missing SUPABASE_SERVICE_ROLE_KEY fails before any work is done.
   const admin = createAdminClient();
 
-  const { data: visible, error } = await userSupabase
+  // Private accounts are listed for the whole household, but only their holder may see their
+  // transactions — so "visible" here means "this user may see its transactions".
+  const { data: cards, error } = await userSupabase
     .from("cards")
-    .select("id")
+    .select("id, is_private, owner_id")
     .eq("couple_id", coupleId);
   // Fail closed: an empty list would otherwise read as "nothing to sync".
   if (error) throw new Error(`Could not read the user's cards: ${error.message}`);
 
-  const visibleCardIds = new Set((visible ?? []).map((c) => c.id));
+  const visibleCardIds = new Set(
+    (cards ?? []).filter((c) => !c.is_private || c.owner_id === userId).map((c) => c.id)
+  );
   return syncCouple(admin, coupleId, { visibleCardIds });
 }

@@ -68,7 +68,7 @@ export async function POST(request: Request) {
   // The sync uses transactionsSync with no cursor on first call, fetching
   // ~24 months of history and storing the cursor for future incremental syncs.
   try {
-    await syncCoupleForUser(supabase, coupleId);
+    await syncCoupleForUser(supabase, coupleId, user.id);
   } catch (err) {
     console.error("Transaction sync failed (non-fatal):", err);
   }

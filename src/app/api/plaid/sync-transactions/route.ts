@@ -18,7 +18,7 @@ export async function POST() {
   }
 
   try {
-    const { synced, errors } = await syncCoupleForUser(supabase, profile.couple_id);
+    const { synced, errors } = await syncCoupleForUser(supabase, profile.couple_id, user.id);
 
     if (errors.length > 0) {
       // Surface the first error message to the client so the UI can display it.

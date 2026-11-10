@@ -77,6 +77,9 @@ export default function AccountDetailClient({
 
   const groups = groupByDate(filtered);
 
+  // A private account is listed for both partners, but only its holder sees the transactions.
+  const transactionsHidden = card.is_private && !isOwner;
+
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
@@ -89,20 +92,22 @@ export default function AccountDetailClient({
           >
             ← Back
           </button>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowEditName(true)}
-              className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => setConfirmRemove(true)}
-              className="text-red-400 font-medium text-sm hover:opacity-75 active:opacity-60"
-            >
-              Remove
-            </button>
-          </div>
+          {!transactionsHidden && (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowEditName(true)}
+                className="text-orange-500 font-medium text-sm hover:opacity-75 active:opacity-60"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => setConfirmRemove(true)}
+                className="text-red-400 font-medium text-sm hover:opacity-75 active:opacity-60"
+              >
+                Remove
+              </button>
+            </div>
+          )}
         </div>
         {/* Account info */}
         <div className="flex items-center gap-3">
@@ -129,6 +134,16 @@ export default function AccountDetailClient({
         </div>
       </div>
 
+      {transactionsHidden ? (
+        <div className="px-4 pt-4">
+          <div className="bg-white rounded-2xl p-8 text-center shadow-sm">
+            <p className="text-2xl mb-2">🔒</p>
+            <p className="text-gray-700 font-medium text-sm">
+              Transactions hidden. Account set to private
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="px-4 pt-4 space-y-3">
         {/* Search */}
         <div className="relative">
@@ -252,6 +267,7 @@ export default function AccountDetailClient({
           </div>
         )}
       </div>
+      )}
 
       {/* Sheets */}
       {selectedTx && (
