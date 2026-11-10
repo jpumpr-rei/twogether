@@ -85,6 +85,7 @@ export default async function AccountDetailPage({
       activeFilter={activeFilter}
       cardId={cardId}
       ownerName={ownerName}
+      isOwner={card.owner_id === user.id}
     />
   );
 }

@@ -21,6 +21,7 @@ export default function AccountDetailClient({
   activeFilter,
   cardId,
   ownerName,
+  isOwner,
 }: {
   card: AccountCardRow;
   transactions: TxRow[];
@@ -28,6 +29,8 @@ export default function AccountDetailClient({
   activeFilter: DateFilter;
   cardId: string;
   ownerName: string;
+  /** Whether the signed-in user is the account holder (linked the bank). */
+  isOwner: boolean;
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -274,6 +277,8 @@ export default function AccountDetailClient({
       {showEditName && (
         <EditAccountNameSheet
           card={{ id: cardId, institution_name: card.institution_name, account_name: cardName, last_four: card.last_four, is_private: cardIsPrivate }}
+          canChangePrivacy={isOwner}
+          holderName={ownerName}
           onClose={() => setShowEditName(false)}
           onSaved={(name, isPrivate) => { setCardName(name); setCardIsPrivate(isPrivate); setShowEditName(false); refresh(); }}
         />

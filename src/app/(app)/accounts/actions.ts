@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 
 export async function updateAccountSettings(
   cardId: string,
-  { name, isPrivate }: { name: string; isPrivate: boolean }
+  { name, isPrivate }: { name: string; isPrivate?: boolean }
 ) {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Name cannot be empty");
@@ -24,9 +24,29 @@ export async function updateAccountSettings(
     .single();
   if (!profile?.couple_id) throw new Error("No household");
 
+  // Anyone in the household can rename a joint account, but only the account holder
+  // (the person who linked the bank) can change who it is hidden from. The database
+  // enforces the same rule (migration_account_holder_privacy.sql); checking here gives
+  // a clear error instead of a generic failure.
+  const { data: card } = await supabase
+    .from("cards")
+    .select("owner_id, is_private")
+    .eq("id", cardId)
+    .eq("couple_id", profile.couple_id) // ownership check
+    .single();
+  if (!card) throw new Error("Account not found");
+
+  const update: { account_name: string; is_private?: boolean } = { account_name: trimmed };
+  if (isPrivate !== undefined && isPrivate !== card.is_private) {
+    if (card.owner_id !== user.id) {
+      throw new Error("Only the account holder can change who sees this account");
+    }
+    update.is_private = isPrivate;
+  }
+
   const { error } = await supabase
     .from("cards")
-    .update({ account_name: trimmed, is_private: isPrivate })
+    .update(update)
     .eq("id", cardId)
     .eq("couple_id", profile.couple_id); // ownership check
   if (error) throw new Error("Failed to update account settings");

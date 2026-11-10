@@ -268,6 +268,8 @@ export default function AccountsClient({
       {editingCard && (
         <EditAccountNameSheet
           card={editingCard}
+          canChangePrivacy={editingCard.owner_id === currentUserId}
+          holderName={ownerNames[editingCard.owner_id] ?? "your partner"}
           onClose={() => setEditingCard(null)}
           onSaved={(name, isPrivate) => handleNameSaved(editingCard.id, name, isPrivate)}
         />
