@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { ArrowUp, X } from "lucide-react";
+import Mark from "@/components/brand/Mark";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -85,9 +87,11 @@ export default function AIChatSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <>
-      <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 z-[60]" onClick={onClose} />
       <div
-        className="fixed bottom-0 inset-x-0 bg-white rounded-t-3xl z-[70] flex flex-col"
+        role="dialog"
+        aria-label="Ask about your money"
+        className="fixed bottom-0 inset-x-0 bg-white rounded-t-[2rem] z-[70] flex flex-col"
         style={{ height: "88vh" }}
       >
         {/* Handle + header */}
@@ -95,19 +99,20 @@ export default function AIChatSheet({ onClose }: { onClose: () => void }) {
           <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-base">
-                🤖
+              <div className="w-9 h-9 rounded-full bg-ink flex items-center justify-center">
+                <Mark width={22} />
               </div>
               <div>
-                <p className="font-bold text-gray-900 text-sm">Finance Assistant</p>
-                <p className="text-xs text-green-500 font-medium">Knows your spending data</p>
+                <p className="font-display font-extrabold tracking-tight text-ink">Ask twogether</p>
+                <p className="text-xs text-mute-light">Knows your spending data</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100"
+              aria-label="Close"
+              className="text-gray-400 hover:text-gray-600 w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100"
             >
-              ✕
+              <X size={20} aria-hidden />
             </button>
           </div>
         </div>
@@ -116,7 +121,7 @@ export default function AIChatSheet({ onClose }: { onClose: () => void }) {
         <div className="flex-1 overflow-y-auto px-4 py-4">
           {messages.length === 0 ? (
             <div>
-              <p className="text-center text-sm text-gray-400 mb-5 mt-2">
+              <p className="text-center text-sm text-mute-light mb-5 mt-2">
                 Ask me anything about your spending, budgets, or trends.
               </p>
               <div className="space-y-2">
@@ -124,7 +129,7 @@ export default function AIChatSheet({ onClose }: { onClose: () => void }) {
                   <button
                     key={s}
                     onClick={() => sendMessage(s)}
-                    className="w-full text-left px-4 py-3 bg-gray-50 rounded-xl text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 transition-colors font-medium border border-transparent hover:border-orange-100"
+                    className="w-full text-left px-4 py-3 bg-gray-50 rounded-2xl text-sm text-gray-700 hover:bg-lime/25 active:bg-lime/25 transition-colors font-medium"
                   >
                     {s}
                   </button>
@@ -141,7 +146,7 @@ export default function AIChatSheet({ onClose }: { onClose: () => void }) {
                   <div
                     className={`max-w-[82%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                       msg.role === "user"
-                        ? "bg-orange-500 text-white rounded-br-sm"
+                        ? "bg-ink text-white rounded-br-sm"
                         : "bg-gray-100 text-gray-800 rounded-bl-sm"
                     }`}
                   >
@@ -179,14 +184,15 @@ export default function AIChatSheet({ onClose }: { onClose: () => void }) {
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage(input)}
               placeholder="Ask about your spending…"
               disabled={isStreaming}
-              className="flex-1 bg-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 disabled:opacity-60"
+              className="flex-1 bg-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ink disabled:opacity-60"
             />
             <button
               onClick={() => sendMessage(input)}
               disabled={!input.trim() || isStreaming}
-              className="w-10 h-10 bg-orange-500 text-white rounded-2xl flex items-center justify-center disabled:opacity-40 hover:bg-orange-600 active:bg-orange-600 flex-shrink-0 text-lg"
+              aria-label="Send"
+              className="w-11 h-11 bg-lime text-ink rounded-full flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform flex-shrink-0"
             >
-              ↑
+              <ArrowUp size={20} strokeWidth={2.5} aria-hidden />
             </button>
           </div>
         </div>

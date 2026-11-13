@@ -2,6 +2,7 @@
 
 import { useState, useRef, useTransition, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import Mark from "@/components/brand/Mark";
 
 const THRESHOLD = 64; // px of pull needed to trigger refresh
 
@@ -19,22 +20,38 @@ export default function PullToRefresh({ children }: { children: React.ReactNode 
 
   const shouldSync = SYNC_PATHS.some((p) => pathname.startsWith(p));
 
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    if ((scrollRef.current?.scrollTop ?? 0) <= 0) {
-      startYRef.current = e.touches[0].clientY;
-    }
-  }, []);
+  // The page scrolls with the document (this container only grows with its content), so the
+  // document's scroll position is what says whether we are at the top. Checking only this
+  // container's scrollTop, which is always 0, made any downward drag count as a pull.
+  const atTop = useCallback(
+    () => window.scrollY <= 0 && (scrollRef.current?.scrollTop ?? 0) <= 0,
+    []
+  );
 
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (startYRef.current === null) return;
-    const delta = e.touches[0].clientY - startYRef.current;
-    if (delta > 0) {
-      setPullY(Math.min(delta * 0.45, THRESHOLD + 16));
-    }
-  }, []);
+  const onTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (atTop()) startYRef.current = e.touches[0].clientY;
+    },
+    [atTop]
+  );
+
+  const onTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (startYRef.current === null) return;
+      const delta = e.touches[0].clientY - startYRef.current;
+      if (delta > 0 && atTop()) {
+        setPullY(Math.min(delta * 0.45, THRESHOLD + 16));
+      } else {
+        // dragged back up, or the page started scrolling: this is not a pull any more
+        startYRef.current = null;
+        setPullY(0);
+      }
+    },
+    [atTop]
+  );
 
   const onTouchEnd = useCallback(() => {
-    if (pullY >= THRESHOLD * 0.75) {
+    if (startYRef.current !== null && pullY >= THRESHOLD * 0.75) {
       if (shouldSync) {
         setIsSyncing(true);
         fetch("/api/plaid/sync-transactions", { method: "POST" })
@@ -62,35 +79,21 @@ export default function PullToRefresh({ children }: { children: React.ReactNode 
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {/* Pull indicator */}
+      {/* Pull indicator: the circles come together as you pull, and orbit while it works. */}
       <div
         className="absolute left-0 right-0 flex justify-center z-30 pointer-events-none"
         style={{
-          top: isVisible ? Math.max(pullY * 0.55, isActive ? 10 : 0) : -48,
+          top: isVisible ? Math.max(pullY * 0.55, isActive ? 10 : 0) : -56,
           opacity: isVisible ? Math.max(progress, isActive ? 1 : 0) : 0,
           transition: pullY === 0 ? "top 0.2s, opacity 0.2s" : "none",
         }}
       >
-        <div
-          className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center"
-          style={{
-            transform: isActive ? undefined : `rotate(${progress * 270}deg)`,
-            animation: isActive ? "spin 0.7s linear infinite" : undefined,
-          }}
-        >
-          <svg
-            className="w-4 h-4 text-orange-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
+        <div className="flex size-11 items-center justify-center rounded-full bg-white ring-1 ring-black/10">
+          {isActive ? (
+            <Mark width={28} state="syncing" />
+          ) : (
+            <Mark width={28} distance={24 - 12 * progress} />
+          )}
         </div>
       </div>
 

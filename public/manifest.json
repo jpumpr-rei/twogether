@@ -4,8 +4,8 @@
   "description": "Shared budgets for couples",
   "start_url": "/budgets",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#f97316",
+  "background_color": "#0e0e10",
+  "theme_color": "#0e0e10",
   "orientation": "portrait",
   "scope": "/",
   "icons": [

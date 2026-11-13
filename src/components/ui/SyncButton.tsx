@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { RefreshCw } from "lucide-react";
 
 export function formatLastSynced(iso: string | null): string | null {
   if (!iso) return null;
@@ -17,9 +18,15 @@ export function formatLastSynced(iso: string | null): string | null {
 export default function SyncButton({
   lastSyncedAt,
   onSynced,
+  tone = "light",
+  showTime = true,
 }: {
   lastSyncedAt: string | null;
   onSynced: () => void;
+  /** "dark" is for black cards. */
+  tone?: "light" | "dark";
+  /** Hide the "synced x ago" line when the surrounding card already shows it. */
+  showTime?: boolean;
 }) {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +48,7 @@ export default function SyncButton({
     }
   }
 
+  const dark = tone === "dark";
   const label = formatLastSynced(syncedAt);
 
   return (
@@ -48,15 +56,21 @@ export default function SyncButton({
       <button
         onClick={handleSync}
         disabled={syncing}
-        className="flex items-center gap-1.5 text-xs font-medium text-orange-500 disabled:opacity-50 py-1 px-2 rounded-lg hover:bg-orange-50 active:bg-orange-50"
+        className={`flex items-center gap-1.5 text-xs font-medium disabled:opacity-50 py-1 px-2 rounded-lg ${
+          dark
+            ? "text-lime hover:bg-white/10 active:bg-white/10"
+            : "text-orange-500 hover:bg-orange-50 active:bg-orange-50"
+        }`}
       >
-        <span className={syncing ? "animate-spin inline-block" : ""}>↻</span>
+        <RefreshCw size={13} aria-hidden className={syncing ? "animate-spin" : ""} />
         {syncing ? "Syncing…" : "Sync"}
       </button>
-      {error
-        ? <p className="text-xs text-red-400 pr-2">{error}</p>
-        : label && <p className="text-xs text-gray-400 pr-2">{label}</p>
-      }
+      {error ? (
+        <p className={`text-xs pr-2 ${dark ? "text-sun" : "text-red-400"}`}>{error}</p>
+      ) : (
+        showTime &&
+        label && <p className={`text-xs pr-2 ${dark ? "text-mute-dark" : "text-gray-400"}`}>{label}</p>
+      )}
     </div>
   );
 }

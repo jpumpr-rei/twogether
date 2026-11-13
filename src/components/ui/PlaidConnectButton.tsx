@@ -97,8 +97,8 @@ export default function PlaidConnectButton({
         disabled={fetching || (token !== null && !ready)}
         className={
           compact
-            ? "bg-orange-500 text-white text-sm font-semibold rounded-xl px-4 py-2 hover:bg-orange-600 active:bg-orange-600 disabled:opacity-50"
-            : "w-full bg-orange-500 text-white text-sm font-semibold rounded-xl py-2.5 hover:bg-orange-600 active:bg-orange-600 disabled:opacity-50"
+            ? "bg-lime text-ink text-sm font-semibold rounded-full px-4 py-2 transition-transform active:scale-95 disabled:opacity-50"
+            : "w-full bg-lime text-ink text-sm font-semibold rounded-full py-3 transition-transform active:scale-[0.99] disabled:opacity-50"
         }
       >
         {buttonLabel}

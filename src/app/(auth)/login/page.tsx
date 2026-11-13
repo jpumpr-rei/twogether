@@ -4,6 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import Mosaic from "@/components/brand/Mosaic";
+import Wordmark from "@/components/brand/Wordmark";
+
+const field =
+  "w-full rounded-2xl border-2 border-gray-200 bg-white px-4 py-3 text-base text-ink placeholder:text-gray-400 focus:border-ink focus:outline-none";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,61 +35,59 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-white">
-      <div className="w-full max-w-sm">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <span className="text-4xl font-bold text-orange-500">twogether</span>
-          <p className="mt-2 text-gray-500 text-sm">Your shared budget, simplified.</p>
+    <>
+      <Mosaic />
+      <div className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10">
+        <div className="w-full max-w-sm rounded-hero bg-white p-6 text-ink">
+          <Wordmark className="text-[36px]" />
+          <p className="mt-2 text-mute-light">Money, in step.</p>
+
+          <form onSubmit={handleLogin} className="mt-7 space-y-4">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium">Email</span>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={field}
+                placeholder="you@example.com"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium">Password</span>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={field}
+                placeholder="••••••••"
+              />
+            </label>
+
+            {error && <p className="rounded-2xl bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-full bg-lime py-3.5 font-display text-lg font-extrabold tracking-tight text-ink transition-transform active:scale-[0.99] disabled:opacity-60"
+            >
+              {loading ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-mute-light">
+            New here?{" "}
+            <Link href="/signup" className="cursor-pointer font-semibold text-ink underline underline-offset-4">
+              Create an account
+            </Link>
+          </p>
         </div>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-orange-400"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-orange-400"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-orange-500 text-white font-semibold rounded-xl py-3 text-base hover:bg-orange-600 active:bg-orange-600 disabled:opacity-60 transition-colors"
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-gray-500">
-          New here?{" "}
-          <Link href="/signup" className="text-orange-500 font-medium cursor-pointer hover:opacity-75">
-            Create an account
-          </Link>
-        </p>
       </div>
-    </div>
+    </>
   );
 }

@@ -1,12 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Bricolage_Grotesque, Figtree } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/components/ui/ServiceWorkerRegistration";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// Display type for headlines and numbers; UI type for everything else. Both are variable fonts,
+// and globals.css maps these variables onto Tailwind's font-display and font-sans.
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  variable: "--font-bricolage",
+  axes: ["opsz"],
+});
+const figtree = Figtree({ subsets: ["latin"], variable: "--font-figtree" });
 
 // iOS shows a plain black screen while a home-screen web app starts unless it is given
-// launch images. Files are in public/splash (regenerate with scripts/generate-splash.sh);
+// launch images. Files are in public/splash (regenerate with scripts/generate-brand-assets.mjs);
 // each entry targets one iPhone screen size.
 const splash = (w: number, h: number, ratio: number) => ({
   url: `/splash/splash-${w * ratio}x${h * ratio}.png`,
@@ -19,7 +26,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    // A black status bar sits well on the dark Home screen and is fine over the light ones.
+    statusBarStyle: "black",
     title: "twogether",
     startupImage: [
       splash(440, 956, 3),
@@ -38,21 +46,21 @@ export const metadata: Metadata = {
   },
 };
 
+// Pinch-zoom is allowed (locking it fails WCAG 1.4.4). The old lock also stopped iOS zooming
+// into small fields on focus; globals.css pins fields to 16px for that instead.
 export const viewport: Viewport = {
-  themeColor: "#f97316",
+  themeColor: "#0E0E10",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang="en" className={`${bricolage.variable} ${figtree.variable}`}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
       </head>
       <body className="bg-white text-gray-900 font-sans antialiased">
         <ServiceWorkerRegistration />
